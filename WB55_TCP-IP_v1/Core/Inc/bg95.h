@@ -78,6 +78,16 @@ typedef struct {
 }BG95_TypeDef;
 
 /**
+ * @brief Sends command that needs to be terminated with CR LF.
+ *
+ * @param device	Pointer to the BG95 device object.
+ * @param command	Pointer to the command char array.
+ * @return	0: Success
+ * 			1: UART fails to send the command. HAL_OK did not received.
+ */
+uint8_t sendCommand(BG95_TypeDef * device, char* command);
+
+/**
  * @brief 	Sends AT+command type EXECUTION command through UART line
  * 			also the command is ended with CR LF
  *
@@ -187,19 +197,6 @@ uint8_t receiveAtResponseT(BG95_TypeDef * device, uint8_t * buffer, uint32_t tim
 uint8_t getBetween(uint8_t * sourceBuf, uint8_t * targetBuf, uint8_t firstChar, uint8_t secondChar);
 
 /**
- * @brief Initializes the device.
- *
- * @param device 	Device GSM device struct address.
- * @return	0: Success
- * 			1: Failed to send AT command
- * 			2: Failed to receive AT command
- * 			3: Failed to get between AT command
- * 			4: Did not receive OK message.
- * 			5: ERROR received.
- */
-uint8_t initDevice(BG95_TypeDef * device);
-
-/**
  * @brief Resets data fields of the BG95 object.
  *
  * @param device Device GSM device struct address.
@@ -215,6 +212,19 @@ void resetData(BG95_TypeDef * device);
  * 			2: Turn on response fail.
  */
 uint8_t resetDevice(BG95_TypeDef * device);
+
+/**
+ * @brief Initializes the device.
+ *
+ * @param device 	Device GSM device struct address.
+ * @return	0: Success
+ * 			1: Failed to send AT command
+ * 			2: Failed to receive AT command
+ * 			3: Failed to get between AT command
+ * 			4: Did not receive OK message.
+ * 			5: ERROR received.
+ */
+uint8_t initDevice(BG95_TypeDef * device);
 
 /**
  * @brief 	Gets the RSSI of the device.

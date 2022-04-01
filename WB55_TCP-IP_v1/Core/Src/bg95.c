@@ -9,6 +9,17 @@
 #include "bg95.h"
 
 
+uint8_t sendCommand(BG95_TypeDef * device, char* command) {
+	uint8_t com_buf[100];
+	memset(com_buf,'\0',100);
+	sprintf((char*)com_buf, "%s\r\n",command);
+	uint16_t size = strlen((char*)com_buf); 				// we may move this inside uart transmit para
+
+	HAL_StatusTypeDef retVal = HAL_UART_Transmit(device->handler, com_buf, size, 10);
+	if (retVal != HAL_OK) return 1;
+	else return 0;
+}
+
 uint8_t sendAtCommand(BG95_TypeDef * device, char* command) {
 	uint8_t com_buf[100];
 	memset(com_buf,'\0',100);
@@ -41,7 +52,6 @@ uint8_t sendWriteAtCommand(BG95_TypeDef * device, char* command, char* parameter
 	if (retVal != HAL_OK) return 1;
 	else return 0;
 }
-
 
 uint8_t sendWriteReceiveAtCommand(BG95_TypeDef * device, char* command, char* parameters) {
 	if (sendWriteAtCommand(device, command, parameters) == 0 ) {
@@ -139,14 +149,6 @@ uint8_t getBetween(uint8_t * sourceBuf, uint8_t * targetBuf, uint8_t firstChar, 
 	return 1;
 }
 
-uint8_t initDevice(BG95_TypeDef * device) {
-	resetData(device);
-	uint8_t response = 0;
-
-
-	if ((response = sendWriteReceiveAtCommandT(device, "CFUN", "1", 1000)) == 0) return 0;
-	else return response; //Could not disable the device
-}
 
 void resetData(BG95_TypeDef * device) {
 	uint8_t resetVal = 82;
@@ -179,6 +181,15 @@ uint8_t resetDevice(BG95_TypeDef * device) {
 		else return (20 + response); //Could not turn on the device
 	}
 	else return (10 + response); //Could not disable the device
+}
+
+uint8_t initDevice(BG95_TypeDef * device) {
+	resetData(device);
+	uint8_t response = 0;
+
+
+	if ((response = sendWriteReceiveAtCommandT(device, "CFUN", "1", 1000)) == 0) return 0;
+	else return response; //Could not disable the device
 }
 
 uint8_t getCsq(BG95_TypeDef * device) {
