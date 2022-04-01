@@ -142,6 +142,8 @@ uint8_t getBetween(uint8_t * sourceBuf, uint8_t * targetBuf, uint8_t firstChar, 
 uint8_t initDevice(BG95_TypeDef * device) {
 	resetData(device);
 	uint8_t response = 0;
+
+
 	if ((response = sendWriteReceiveAtCommandT(device, "CFUN", "1", 1000)) == 0) return 0;
 	else return response; //Could not disable the device
 }
