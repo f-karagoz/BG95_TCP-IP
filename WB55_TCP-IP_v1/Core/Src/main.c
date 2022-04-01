@@ -101,17 +101,12 @@ int main(void)
   BG95_TypeDef bg95;
   bg95.handler = &hlpuart1;
   resetData(&bg95);
-  uint8_t resultCode[20];
-  memset(resultCode,0,20);
+  uint8_t resultCode[21];
+  memset(resultCode,0,21);
 
-  /* Cancelled 1
-  uint8_t ret[] = {9,9,9};
-  uint8_t rxBuf[100];
-  rxBuf[99] = '\0';
-  uint8_t parBuf[50];
-  // fill up the buffer in order to remove the \0s
-  for(int i=0; i<100; i++) rxBuf[i]='a';
-  */
+  resultCode[19] = initDevice(&bg95); // app
+
+
 
 
   /* USER CODE END 2 */
@@ -120,8 +115,47 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  //uint8_t ret = sendAtCommand(&bg95, "QGMR"); // first LF, last CR
+	  if (resultCode[19] == 0) {
+		  resultCode[1] = getQgmr(&bg95);
+		  resultCode[0] = getCsq(&bg95);
+		  if ((resultCode[0] == 0) && (bg95.csq.rssi != 0x52) && (bg95.csq.rssi != 99)) { // 0x52: R meaning reset cond.
+			  resultCode[2] = sendWriteReceiveAtCommand(&bg95, "CREG", "2");
+			  resultCode[3] = getCreg(&bg95);
+			  if (bg95.creg.stat == 1) // Registered, home network
+			  {
+				  resultCode[4] = getCops(&bg95);
+				  resultCode[5] = setTcpIpContext(&bg95, 1, 1, "internet", "", "", 1);
+				  if (resultCode[5] == 0) {
+					  resultCode[6] = sendWriteReceiveAtCommandT(&bg95, "QIACT", "1",2000);  // Activate PDP context with ID 1
+					  if (resultCode[6] == 0) {
+						  resultCode[7] = getQiact(&bg95);
+						  uint8_t size = strlen((char*)bg95.qiact.ip);
+						  uint8_t count = 0;
+						  for (int i=0; i<size; i++) if(bg95.qiact.ip[i] == 0x2E) count++; // 0x2E: .
+						  if((count == 3) && (bg95.qiact.cState == 1)) {
+							  resultCode[8] = setSocketService(&bg95, 1, 0, "TCP", "184.106.153.149", 80, 0, 1);
+							  if (resultCode[8] == 0) {
+								  // Done for now. Socket open.
+								  resultCode[9] = sendReceiveCommandT(&bg95, "AT+QPOWD", 1000); // Power down if success
+								  resultCode[20] = 8; // Success
+							  }
+							  else resultCode[20] = 7; // Socket service fail
+						  }
+						  else resultCode[20] = 6; // ip not valid or PDP context deactivated
+					  }
+					  else resultCode[20] = 5; // could not activate PDP context (tcp-ip)
+				  }
+				  else resultCode[20] = 4; // could not set PDP context (tcp-ip)
+			  }
+			  else resultCode[20] = 3; // could not registred to a network
+		  }
+		  else resultCode[20] = 2; // rssi not valid
+	  }
+	  else resultCode[20] = 1; // init fail
+	  if (resultCode[20] != 8)  (resultCode[9] = sendReceiveCommandT(&bg95, "AT+QPOWD", 1000)); // Power down if not success
 
+
+	  /*
 	  resultCode[19] = initDevice(&bg95);
 	  resultCode[0] = getCsq(&bg95);
 	  resultCode[1] = getQgmr(&bg95);
@@ -134,40 +168,9 @@ int main(void)
 	  resultCode[8] = setSocketService(&bg95, 1, 0, "TCP", "184.106.153.149", 80, 0, 1);
 	  //resultCode[9] = sendWriteReceiveAtCommand(&bg95, "QIDEACT", "1");  // Activate PDP context with ID 1
 	  resultCode[9] = resetDevice(&bg95);
-
-	  /**
-	   * 0: space 0,1 CR
-	   * 1: space 1,1 CR
-	   * 2: space 2,1,"HEX4","HEX4",0 CR
-	   */
-	  /*
-	  uint8_t dumpBuf[100];
-	  memset(dumpBuf,'u',100);
-	  dumpBuf[99] = '\0';
-	  HAL_Delay(10);
-	  resultCode[3] = receiveAtResponse(&bg95, dumpBuf); // we need to receive the result code in order for uart to receive properly next round.
 	  */
+	  HAL_Delay(1000);
 
-	  //* Cancelled 2
-	  //uint8_t resultCode = getCsq(&bg95);
-	  HAL_Delay(1000);
-	  //*/
-	  /* Cancelled 1
-	  ret[0] = sendAtCommand(bg95, "CSQ");
-	  //for(int i=0; i<100; i++) rxBuf[i]='a';
-	  //HAL_UART_Receive(&hlpuart1, rxBuf, sizeof(rxBuf), 2000);
-	  ret[1] = receiveAtResponse(bg95, rxBuf);
-	  ret[2] = getBetween(rxBuf, parBuf, 0x20, 0x0D);
-	  HAL_UART_Transmit(&huart1, rxBuf, strlen((char*)rxBuf), HAL_MAX_DELAY);
-	  HAL_Delay(1000);
-	  */
-
-	  /* Cancelled 0
-	  uint8_t buf[10];
-	  strcpy((char*)buf,"ATI\r\n");
-	  HAL_UART_Transmit(&hlpuart1, buf, strlen((char*)buf), HAL_MAX_DELAY);
-	  HAL_Delay(1000);
-	  */
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

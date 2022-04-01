@@ -64,6 +64,7 @@ typedef struct {
 	uint8_t ip[40];		/*!< Local IP address after context is activated.	*/
 }QIACT_TypeDef;
 
+
 /**
  * @brief BG95_TypeDef stores data related to the module operation.
  *
@@ -75,7 +76,47 @@ typedef struct {
 	CREG_TypeDef creg;				/*!< CREG variables. n, stat, lac, ci, and act.					*/
 	COPS_TypeDef cops;				/*!< COPS variables. mode, format, oper, act.					*/
 	QIACT_TypeDef qiact;			/*!< QIACT variables. 											*/
+	uint8_t cfun;
 }BG95_TypeDef;
+
+/**
+ * @brief Used for collecting received UART data to a buffer.
+ * 			Fills up the buffer with '~' first in order to detect the end of the received data package.
+ *
+ * @param device 	Pointer to the BG95 device object.
+ * @param buffer	Pointer to a buffer to be filled.
+ * @return 	0: Success
+ * 			1: HAL_TIMEOUT. Whole or some data may be received. Also, this may occur due to high buffer size.
+ * 			2: UART fails to receive data.
+ */
+uint8_t receiveAtResponse(BG95_TypeDef * device, uint8_t * buffer);
+/**
+ * @brief Used for collecting received UART data to a buffer.
+ * 			Fills up the buffer with '~' first in order to detect the end of the received data package.
+ *
+ * @param device	Pointer to the BG95 device object.
+ * @param buffer	Pointer to a buffer to be filled.
+ * @param timeout	Timeout for UART Rx operation in ms.
+ * @return	0: Success
+ * 			1: HAL_TIMEOUT. Whole or some data may be received. Also, this may occur due to high buffer size.
+ * 			2: UART fails to receive data.
+ */
+uint8_t receiveAtResponseT(BG95_TypeDef * device, uint8_t * buffer, uint32_t timeout);
+
+/**
+ * @brief When specified character encountered in an char array data collection starts.
+ * 			If end character detects after the start character, all the characters between two
+ * 			copied into another buffer.
+ *
+ * @param sourceBuf Source buffer to be inspected.
+ * @param targetBuf	Target buffer that will be filled with the data collected.
+ * @param firstChar First character specification that starts the data collection.
+ * @param secondChar Last character specified that ends the data field.
+ * @return 	0: Success
+ * 			1: No start char detected
+ * 			2: No end character detected. But the data is still collected.
+ */
+uint8_t getBetween(uint8_t * sourceBuf, uint8_t * targetBuf, uint8_t firstChar, uint8_t secondChar);
 
 /**
  * @brief Sends command that needs to be terminated with CR LF.
@@ -86,6 +127,21 @@ typedef struct {
  * 			1: UART fails to send the command. HAL_OK did not received.
  */
 uint8_t sendCommand(BG95_TypeDef * device, char* command);
+
+/**
+ * @brief	Sends command through UART line and receives the response.
+ *
+ * @param device		Pointer to the BG95 device object.
+ * @param command		Pointer to the command char array.
+ * @param timeout		Timeout for UART RX.
+ * @return	0: Success
+ * 			1: Failed to send AT command
+ * 			2: Failed to receive AT command
+ * 			3: Failed to get between AT command
+ * 			4: Did not receive OK message.
+ * 			5: ERROR received.
+ */
+uint8_t sendReceiveCommandT(BG95_TypeDef * device, char* command, uint32_t timeout);
 
 /**
  * @brief 	Sends AT+command type EXECUTION command through UART line
@@ -158,45 +214,6 @@ uint8_t sendWriteReceiveAtCommand(BG95_TypeDef * device, char* command, char* pa
 uint8_t sendWriteReceiveAtCommandT(BG95_TypeDef * device, char* command, char* parameters, uint32_t timeout);
 
 /**
- * @brief Used for collecting received UART data to a buffer.
- * 			Fills up the buffer with '~' first in order to detect the end of the received data package.
- *
- * @param device 	Pointer to the BG95 device object.
- * @param buffer	Pointer to a buffer to be filled.
- * @return 	0: Success
- * 			1: HAL_TIMEOUT. Whole or some data may be received. Also, this may occur due to high buffer size.
- * 			2: UART fails to receive data.
- */
-uint8_t receiveAtResponse(BG95_TypeDef * device, uint8_t * buffer);
-/**
- * @brief Used for collecting received UART data to a buffer.
- * 			Fills up the buffer with '~' first in order to detect the end of the received data package.
- *
- * @param device	Pointer to the BG95 device object.
- * @param buffer	Pointer to a buffer to be filled.
- * @param timeout	Timeout for UART Rx operation in ms.
- * @return	0: Success
- * 			1: HAL_TIMEOUT. Whole or some data may be received. Also, this may occur due to high buffer size.
- * 			2: UART fails to receive data.
- */
-uint8_t receiveAtResponseT(BG95_TypeDef * device, uint8_t * buffer, uint32_t timeout);
-
-/**
- * @brief When specified character encountered in an char array data collection starts.
- * 			If end character detects after the start character, all the characters between two
- * 			copied into another buffer.
- *
- * @param sourceBuf Source buffer to be inspected.
- * @param targetBuf	Target buffer that will be filled with the data collected.
- * @param firstChar First character specification that starts the data collection.
- * @param secondChar Last character specified that ends the data field.
- * @return 	0: Success
- * 			1: No start char detected
- * 			2: No end character detected. But the data is still collected.
- */
-uint8_t getBetween(uint8_t * sourceBuf, uint8_t * targetBuf, uint8_t firstChar, uint8_t secondChar);
-
-/**
  * @brief Resets data fields of the BG95 object.
  *
  * @param device Device GSM device struct address.
@@ -218,13 +235,24 @@ uint8_t resetDevice(BG95_TypeDef * device);
  *
  * @param device 	Device GSM device struct address.
  * @return	0: Success
+ * 							11: Failed to send AT command 			#AT		21: Failed to send AT command. 			#CFUN		31: #CFUN=1
+ * 							12: Failed to receive AT command		#AT		22: Failed to receive AT command. 		#CFUN		32: #CFUN=1
+ * 							13: Failed to get between AT command	#AT		23: Failed to get between AT command.  	#CFUN		33: #CFUN=1
+ * 							14: Did not receive OK message.			#AT															34: #CFUN=1
+ * 							15: ERROR received.						#AT															35: #CFUN=1
+ */
+uint8_t initDevice(BG95_TypeDef * device);
+
+/**
+ * @brief Gets functionality level of the device.
+ *
+ * @param device 	Device GSM device struct address.
+ * @return	0: Success
  * 			1: Failed to send AT command
  * 			2: Failed to receive AT command
  * 			3: Failed to get between AT command
- * 			4: Did not receive OK message.
- * 			5: ERROR received.
  */
-uint8_t initDevice(BG95_TypeDef * device);
+uint8_t getCfun(BG95_TypeDef * device);
 
 /**
  * @brief 	Gets the RSSI of the device.

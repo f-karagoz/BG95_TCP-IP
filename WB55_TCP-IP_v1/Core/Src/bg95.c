@@ -8,6 +8,59 @@
 
 #include "bg95.h"
 
+uint8_t receiveAtResponse(BG95_TypeDef * device, uint8_t * buffer) {
+	uint16_t size = strlen((char*)buffer);
+	for(int i=0; i<size; i++) buffer[i]='~'; 				// we may change this as memset
+	HAL_StatusTypeDef retVal = HAL_UART_Receive(device->handler, buffer, size, 30); //!<
+	if (retVal == HAL_OK) return 0;
+	else if (retVal == HAL_TIMEOUT) return 1;
+	else return 2;
+}
+
+uint8_t receiveAtResponseT(BG95_TypeDef * device, uint8_t * buffer, uint32_t timeout) {
+	uint16_t size = strlen((char*)buffer);
+	for(int i=0; i<size; i++) buffer[i]='~'; 				// we may change this as memset
+	HAL_StatusTypeDef retVal = HAL_UART_Receive(device->handler, buffer, size, timeout); //!<
+	if (retVal == HAL_OK) return 0;
+	else if (retVal == HAL_TIMEOUT) return 1;
+	else return 2;
+}
+
+uint8_t getBetween(uint8_t * sourceBuf, uint8_t * targetBuf, uint8_t firstChar, uint8_t secondChar) {
+	uint16_t size = strlen((char*)sourceBuf);
+	uint8_t firstIndx = 0;				/*!< Collects the index of the first character. For space, 0x20 or 32 or ' '	*/
+	uint8_t lastIndx = 0;				/*!< Collects the index of the last character. For CR, 0x0D or 13 				*/
+	for(int i=0; i<size; i++) {
+		if (sourceBuf[i] == firstChar) {
+			// first index found
+			firstIndx=i+1;
+			for(int j=i; j<size; j++) {
+				if (sourceBuf[j] == secondChar) {
+					// last index found
+					// collect data
+					lastIndx=j-1;
+					uint8_t dataSize = lastIndx-firstIndx+1;
+					for (int k=0; k<dataSize; k++) {
+						targetBuf[k] = sourceBuf[firstIndx+k];
+					}
+					targetBuf[dataSize] = '\0'; // null terminator for the end of the target
+					return 0;
+				}
+			}
+			// end of array scan after first char detected but no last char detected
+			// collect data
+			uint8_t dataSize = strlen((char*)sourceBuf)-firstIndx;
+			for (int k=0; k<dataSize; k++) {
+				targetBuf[k] = sourceBuf[firstIndx+k];
+			}
+			targetBuf[dataSize] = '\0'; // null terminator for the end of the target buffer
+			return 2;
+		}
+
+	}
+	// end of array scan but no first char found
+	return 1;
+}
 
 uint8_t sendCommand(BG95_TypeDef * device, char* command) {
 	uint8_t com_buf[100];
@@ -18,6 +71,27 @@ uint8_t sendCommand(BG95_TypeDef * device, char* command) {
 	HAL_StatusTypeDef retVal = HAL_UART_Transmit(device->handler, com_buf, size, 10);
 	if (retVal != HAL_OK) return 1;
 	else return 0;
+}
+
+uint8_t sendReceiveCommandT(BG95_TypeDef * device, char* command, uint32_t timeout) {
+	if (sendCommand(device, command) == 0 ) {
+		uint8_t rxBuf[100];
+		for(int i=0; i<100; i++) rxBuf[i]='~'; 					// we may change this as memset
+		rxBuf[99] = '\0';
+		if (receiveAtResponseT(device, rxBuf, timeout) != 2) {
+			uint8_t parBuf[50];
+			// fill up the buffer in order to remove the \0s
+			for(int i=0; i<50; i++) parBuf[i]='~'; 					// we may change this as memset
+			if (getBetween(rxBuf, parBuf, 0x0A, 0x0D) != 1 ) {			/*!< LF: 0x0A, CR: 0x0D 		*/
+				if ((parBuf[0] == 'O') && (parBuf[1] == 'K')) return 0;
+				else if ((parBuf[0] == 'E') && (parBuf[1] == 'R') && (parBuf[2] == 'R') && (parBuf[3] == 'O') && (parBuf[4] == 'R') ) return 5; /*!< ERROR received	*/
+				else return 4;						/*!< Did not receive OK					*/
+			}
+			else return 3;							/*!< Failed to get between AT command 	*/
+		}
+		else return 2;								/*!< Failed to receive AT command 		*/
+	}
+	else return 1; 									/*!< Failed to send AT command 			*/
 }
 
 uint8_t sendAtCommand(BG95_TypeDef * device, char* command) {
@@ -95,61 +169,6 @@ uint8_t sendWriteReceiveAtCommandT(BG95_TypeDef * device, char* command, char* p
 	else return 1; 									/*!< Failed to send AT command 			*/
 }
 
-uint8_t receiveAtResponse(BG95_TypeDef * device, uint8_t * buffer) {
-	uint16_t size = strlen((char*)buffer);
-	for(int i=0; i<size; i++) buffer[i]='~'; 				// we may change this as memset
-	HAL_StatusTypeDef retVal = HAL_UART_Receive(device->handler, buffer, size, 30); //!<
-	if (retVal == HAL_OK) return 0;
-	else if (retVal == HAL_TIMEOUT) return 1;
-	else return 2;
-}
-
-uint8_t receiveAtResponseT(BG95_TypeDef * device, uint8_t * buffer, uint32_t timeout) {
-	uint16_t size = strlen((char*)buffer);
-	for(int i=0; i<size; i++) buffer[i]='~'; 				// we may change this as memset
-	HAL_StatusTypeDef retVal = HAL_UART_Receive(device->handler, buffer, size, timeout); //!<
-	if (retVal == HAL_OK) return 0;
-	else if (retVal == HAL_TIMEOUT) return 1;
-	else return 2;
-}
-
-uint8_t getBetween(uint8_t * sourceBuf, uint8_t * targetBuf, uint8_t firstChar, uint8_t secondChar) {
-	uint16_t size = strlen((char*)sourceBuf);
-	uint8_t firstIndx = 0;				/*!< Collects the index of the first character. For space, 0x20 or 32 or ' '	*/
-	uint8_t lastIndx = 0;				/*!< Collects the index of the last character. For CR, 0x0D or 13 				*/
-	for(int i=0; i<size; i++) {
-		if (sourceBuf[i] == firstChar) {
-			// first index found
-			firstIndx=i+1;
-			for(int j=i; j<size; j++) {
-				if (sourceBuf[j] == secondChar) {
-					// last index found
-					// collect data
-					lastIndx=j-1;
-					uint8_t dataSize = lastIndx-firstIndx+1;
-					for (int k=0; k<dataSize; k++) {
-						targetBuf[k] = sourceBuf[firstIndx+k];
-					}
-					targetBuf[dataSize] = '\0'; // null terminator for the end of the target
-					return 0;
-				}
-			}
-			// end of array scan after first char detected but no last char detected
-			// collect data
-			uint8_t dataSize = strlen((char*)sourceBuf)-firstIndx;
-			for (int k=0; k<dataSize; k++) {
-				targetBuf[k] = sourceBuf[firstIndx+k];
-			}
-			targetBuf[dataSize] = '\0'; // null terminator for the end of the target buffer
-			return 2;
-		}
-
-	}
-	// end of array scan but no first char found
-	return 1;
-}
-
-
 void resetData(BG95_TypeDef * device) {
 	uint8_t resetVal = 82;
 	device->csq.rssi= resetVal; // 57 is arbitrary default value for testing
@@ -171,6 +190,7 @@ void resetData(BG95_TypeDef * device) {
 	device->qiact.cType = resetVal;
 	memset(device->qiact.ip,resetVal,39);
 	device->qiact.ip[40] = 0x00;
+	device->cfun = resetVal;
 }
 
 uint8_t resetDevice(BG95_TypeDef * device) {
@@ -185,11 +205,50 @@ uint8_t resetDevice(BG95_TypeDef * device) {
 
 uint8_t initDevice(BG95_TypeDef * device) {
 	resetData(device);
-	uint8_t response = 0;
+	uint8_t response = 9; 							// 9 is arbitrary not to conflict.
+	uint8_t count = 0;
+	while ((response != 0) && (count<5)) {
+		response = sendReceiveCommandT(device, "AT", 500);
+		count++;
+	}
+	if (response != 0) return (10 + response); 		/*!< Could not get at response. Device might be turned off */
+	else {
+		if ((response = getCfun(device)) == 0) {
+			if (device->cfun != 1) {
+				count = 0;
+				while((device->cfun != 1) && (count<5)) {			 // Attempt to set CFUN to 1
+					response = sendWriteReceiveAtCommandT(device, "CFUN", "1", 1000);
+					getCfun(device);
+				}
+				if(device->cfun == 1) return 0; 	/*!< Functionality of the device changed. 					*/
+				else return (30 + response);		/*!< Func. cannot be changed							 	*/
+			}
+			else return 0;							/*!< Device is responsive and CFUN is set for full func. 	*/
+		}
+		else return (20 + response); 				/*!< Could not get cfun 									*/
+	}
+}
 
-
-	if ((response = sendWriteReceiveAtCommandT(device, "CFUN", "1", 1000)) == 0) return 0;
-	else return response; //Could not disable the device
+uint8_t getCfun(BG95_TypeDef * device) {
+	if (sendAtCommand(device, "CFUN?") == 0 ) {
+		uint8_t rxBuf[100];
+		for(int i=0; i<100; i++) rxBuf[i]='~'; 					// we may change this as memset
+		//memset(rxBuf,'~',99);
+		rxBuf[99] = '\0';
+		if (receiveAtResponse(device, rxBuf) != 2) {
+			uint8_t parBuf[50];
+			// fill up the buffer in order to remove the \0s
+			for(int i=0; i<50; i++) parBuf[i]='~'; 				// we may change this as memset
+			//memset(parBuf,'~',50);
+			if (getBetween(rxBuf, parBuf, 0x20, 0x0D) != 1 ) {			/*!< space: 0x20, CR: 0x0D 		*/
+				device->cfun = (uint8_t)((parBuf[0])-0x30);
+				return 0;
+			}
+			else return 3;							/*!< Failed to get between AT command 	*/
+		}
+		else return 2;								/*!< Failed to receive AT command 		*/
+	}
+	else return 1; 									/*!< Failed to send AT command 			*/
 }
 
 uint8_t getCsq(BG95_TypeDef * device) {
