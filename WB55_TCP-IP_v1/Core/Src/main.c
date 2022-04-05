@@ -133,10 +133,11 @@ int main(void)
 						  uint8_t count = 0;
 						  for (int i=0; i<size; i++) if(bg95.qiact.ip[i] == 0x2E) count++; // 0x2E: .
 						  if((count == 3) && (bg95.qiact.cState == 1)) {
-							  resultCode[8] = setSocketService(&bg95, 1, 0, "TCP", "184.106.153.149", 80, 0, 1);
+							  resultCode[8] = openSocketService(&bg95, 1, 0, "TCP", "184.106.153.149", 80, 0, 1);
 							  if (resultCode[8] == 0) {
 								  // Done for now. Socket open.
-								  resultCode[9] = sendReceiveCommandT(&bg95, "AT+QPOWD", 1000); // Power down if success
+								  resultCode[9] = sendSocket(&bg95, 0, 30); // 0: bg95.qiact.cId
+								  resultCode[10] = sendReceiveCommandT(&bg95, "AT+QPOWD", 1000); // Power down if success
 								  resultCode[20] = 8; // Success
 							  }
 							  else resultCode[20] = 7; // Socket service fail

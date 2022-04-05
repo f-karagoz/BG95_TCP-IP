@@ -73,6 +73,17 @@ uint8_t sendCommand(BG95_TypeDef * device, char* command) {
 	else return 0;
 }
 
+uint8_t sendPlain(BG95_TypeDef * device, char* command) {
+	uint8_t com_buf[100];
+	memset(com_buf,'\0',100);
+	sprintf((char*)com_buf, "%s",command);
+	uint16_t size = strlen((char*)com_buf); 				// we may move this inside uart transmit para
+
+	HAL_StatusTypeDef retVal = HAL_UART_Transmit(device->handler, com_buf, size, 10);
+	if (retVal != HAL_OK) return 1;
+	else return 0;
+}
+
 uint8_t sendReceiveCommandT(BG95_TypeDef * device, char* command, uint32_t timeout) {
 	if (sendCommand(device, command) == 0 ) {
 		uint8_t rxBuf[100];
@@ -160,6 +171,26 @@ uint8_t sendWriteReceiveAtCommandT(BG95_TypeDef * device, char* command, char* p
 			if (getBetween(rxBuf, parBuf, 0x0A, 0x0D) != 1 ) {			/*!< LF: 0x0A, CR: 0x0D 		*/
 				if ((parBuf[0] == 'O') && (parBuf[1] == 'K')) return 0;
 				else if ((parBuf[0] == 'E') && (parBuf[1] == 'R') && (parBuf[2] == 'R') && (parBuf[3] == 'O') && (parBuf[4] == 'R') ) return 5; /*!< ERROR received	*/
+				else return 4;						/*!< Did not receive OK					*/
+			}
+			else return 3;							/*!< Failed to get between AT command 	*/
+		}
+		else return 2;								/*!< Failed to receive AT command 		*/
+	}
+	else return 1; 									/*!< Failed to send AT command 			*/
+}
+
+uint8_t sendWriteReceiveAtCommandS(BG95_TypeDef * device, char* command, char* parameters) {
+	if (sendWriteAtCommand(device, command, parameters) == 0 ) {
+		uint8_t rxBuf[100];
+		for(int i=0; i<100; i++) rxBuf[i]='~'; 					// we may change this as memset
+		rxBuf[99] = '\0';
+		if (receiveAtResponse(device, rxBuf) != 2) {
+			uint8_t parBuf[50];
+			// fill up the buffer in order to remove the \0s
+			for(int i=0; i<50; i++) parBuf[i]='~'; 					// we may change this as memset
+			if (getBetween(rxBuf, parBuf, 0x0A, 0x20) != 1 ) {			/*!< LF: 0x0A, space: 0x20 		*/
+				if ((parBuf[0] == '>')) return 0;
 				else return 4;						/*!< Did not receive OK					*/
 			}
 			else return 3;							/*!< Failed to get between AT command 	*/
@@ -436,8 +467,28 @@ uint8_t getQiact(BG95_TypeDef * device) {
 	else return 1; 									/*!< Failed to send AT command 			*/
 }
 
-uint8_t setSocketService(BG95_TypeDef * device, uint8_t cId, uint8_t connectId, char * sType, char * ip, uint8_t rPort, uint8_t lPort, uint8_t aMode) {
+// in here we are only looking for OK response. Bu there is more. After OK we are expected to get "+QIOPEN=N1,N2" where N1 is connectID and N2 is the result.
+// if N2 is 0 we get that service is opened successfully. So in the future we should check that too for a healthy operation.
+uint8_t openSocketService(BG95_TypeDef * device, uint8_t cId, uint8_t connectId, char * sType, char * ip, uint8_t rPort, uint8_t lPort, uint8_t aMode) {
 	uint8_t parBuf[100];
 	sprintf((char*)parBuf, "%d,%d,\"%s\",\"%s\",%d,%d,%d",cId,connectId,sType,ip,rPort,lPort,aMode);
 	return sendWriteReceiveAtCommandT(device, "QIOPEN", (char*)parBuf,1000);
+}
+
+uint8_t sendSocket(BG95_TypeDef * device, uint8_t connectId, uint8_t data) {
+	// check for receiving ">"
+	// then send the data, and maybe wait for the response
+	uint8_t response = 9;
+	char test[1] = "0";
+	if ((response = sendWriteReceiveAtCommandS(device, "QISEND", test)) == 0)
+	{
+		// send data here
+		uint8_t package[100];
+		memset(package,0,100);
+		//  GET https://api.thingspeak.com/update?api_key=3XX0ILLFNZCYAQNS&field1=%d\x1a
+		sprintf((char*)package,"GET https://api.thingspeak.com/update?api_key=UZ0ALREJ46G1IZED&field1=%d\r\n\x1a",data);
+		sendPlain(device, (char*)package);
+		return 0;
+	}
+	else return response;
 }

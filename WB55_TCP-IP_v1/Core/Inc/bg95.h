@@ -4,12 +4,13 @@
  * @date	22/03/2022
  * @brief	Header file of BG95 module driver.
  *
- * @todo	AT+QIOPEN=...
- * 			AT+QISTATE=...
- * 			AT+QISEND=...
- * 			AT+QICLOSE=...
+ * @todo	AT+QIOPEN=... 	(DONE, PARTIAL CONTROL)
+ * 			AT+QISTATE=... 	(TO DO)
+ * 			AT+QISEND=...	(DOING)
+ * 			AT+QICLOSE=...	(TO DO)
  *
- *
+ * @note	About the contextID and connectID. Context is related to PDP definition and contextID is for the ongoing PDP context.
+ * 			Whereas, connectID is for an ongoing TCP-IP connection.
  *
  */
 
@@ -129,6 +130,16 @@ uint8_t getBetween(uint8_t * sourceBuf, uint8_t * targetBuf, uint8_t firstChar, 
 uint8_t sendCommand(BG95_TypeDef * device, char* command);
 
 /**
+ * @brief Sends plain text through UART.
+ *
+ * @param device	Pointer to the BG95 device object.
+ * @param command	Pointer to the command char array.
+ * @return	0: Success
+ * 			1: UART fails to send the command. HAL_OK did not received.
+ */
+uint8_t sendPlain(BG95_TypeDef * device, char* command);
+
+/**
  * @brief	Sends command through UART line and receives the response.
  *
  * @param device		Pointer to the BG95 device object.
@@ -212,6 +223,22 @@ uint8_t sendWriteReceiveAtCommand(BG95_TypeDef * device, char* command, char* pa
  * 			5: ERROR received.
  */
 uint8_t sendWriteReceiveAtCommandT(BG95_TypeDef * device, char* command, char* parameters, uint32_t timeout);
+
+/**
+ * @brief 	Sends AT+command=parameters type READ command through UART line
+ * 			also the command is ended with CR LF
+ * 			also receives the response and looks for '>'.
+ *
+ * @param device		Pointer to the BG95 device object.
+ * @param command		Pointer to the command char array.
+ * @param parameters	Pointer to the parameters char array.
+ * @return	0: Success
+ * 			1: Failed to send AT command
+ * 			2: Failed to receive AT command
+ * 			3: Failed to get between AT command
+ * 			4: Did not receive valid response character.
+ */
+uint8_t sendWriteReceiveAtCommandS(BG95_TypeDef * device, char* command, char* parameters);
 
 /**
  * @brief Resets data fields of the BG95 object.
@@ -319,7 +346,7 @@ uint8_t getCops(BG95_TypeDef * device);
 uint8_t setTcpIpContext(BG95_TypeDef * device, uint8_t cId, uint8_t cType, char * Apn, char * name, char * pw, uint8_t aut);
 
 /**
- * @brief Gets active PDP contexts' IP address'.
+ * @brief 	Gets active PDP contexts' IP address'.
  *
  * @param 	device	Device GSM device struct address.
  * @return	0: Success
@@ -330,7 +357,7 @@ uint8_t setTcpIpContext(BG95_TypeDef * device, uint8_t cId, uint8_t cType, char 
  */
 uint8_t getQiact(BG95_TypeDef * device);
 /**
- * @brief
+ * @brief	Opens a socket service.
  *
  * @param 	device		Device GSM device struct address.
  * @param 	cId			Context ID. 1-16
@@ -346,5 +373,21 @@ uint8_t getQiact(BG95_TypeDef * device);
  * 			3: Failed to get between AT command
  * 			4: Unsupported result code.
  */
-uint8_t setSocketService(BG95_TypeDef * device, uint8_t cId, uint8_t connectId, char * sType, char * ip, uint8_t rPort, uint8_t lPort, uint8_t aMode);
+uint8_t openSocketService(BG95_TypeDef * device, uint8_t cId, uint8_t connectId, char * sType, char * ip, uint8_t rPort, uint8_t lPort, uint8_t aMode);
+
+/**
+ * @brief	Sends data through previously opened socket service.
+ *
+ * @param device	Device GSM device struct address.
+ * @param connectId	Socket connect id
+ * @param data		Data to be sent to the TS field
+ * @return	0: Success
+ * 			1: Failed to send AT command
+ * 			2: Failed to receive AT command
+ * 			3: Failed to get between AT command
+ * 			4: Did not receive valid response character.
+ */
+uint8_t sendSocket(BG95_TypeDef * device, uint8_t connectId, uint8_t data);
+
+
 #endif /* BG95_H_ */
