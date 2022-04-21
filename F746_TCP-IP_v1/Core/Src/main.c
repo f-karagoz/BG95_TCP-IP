@@ -22,7 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
+#include "bg95.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,6 +42,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
@@ -51,6 +53,7 @@ UART_HandleTypeDef huart3;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -89,7 +92,16 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART3_UART_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  BG95_TypeDef bg95;
+  bg95.handler = &huart2;
+  resetData(&bg95);
+  uint8_t resultCode[21];
+  memset(resultCode,'R',21);
+
+  resultCode[19] = initDevice(&bg95); // app
 
   /* USER CODE END 2 */
 
@@ -97,6 +109,46 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if (resultCode[19] == 0) {
+	  		  resultCode[1] = getQgmr(&bg95);
+	  		  resultCode[0] = getCsq(&bg95);
+	  		  if ((resultCode[0] == 0) && (bg95.csq.rssi != 0x52) && (bg95.csq.rssi != 99)) { // 0x52: R meaning reset cond.
+	  			  resultCode[2] = sendWriteReceiveAtCommand(&bg95, "CREG", "2");
+	  			  resultCode[3] = getCreg(&bg95);
+	  			  if (bg95.creg.stat == 1) // Registered, home network
+	  			  {
+	  				  resultCode[4] = getCops(&bg95);
+	  				  resultCode[5] = setTcpIpContext(&bg95, 1, 1, "internet", "", "", 1);
+	  				  if (resultCode[5] == 0) {
+	  					  resultCode[6] = sendWriteReceiveAtCommandT(&bg95, "QIACT", "1",2000);  // Activate PDP context with ID 1
+	  					  if (resultCode[6] == 0) {
+	  						  resultCode[7] = getQiact(&bg95);
+	  						  uint8_t size = strlen((char*)bg95.qiact.ip);
+	  						  uint8_t count = 0;
+	  						  for (int i=0; i<size; i++) if(bg95.qiact.ip[i] == 0x2E) count++; // 0x2E: .
+	  						  if((count == 3) && (bg95.qiact.cState == 1)) {
+	  							  resultCode[8] = openSocketService(&bg95, 1, 0, "TCP", "184.106.153.149", 80, 0, 1);
+	  							  if (resultCode[8] == 0) {
+	  								  // Done for now. Socket open.
+	  								  resultCode[9] = sendSocket(&bg95, 0, 30); // 0: bg95.qiact.cId
+	  								  resultCode[10] = sendReceiveCommandT(&bg95, "AT+QPOWD", 1000); // Power down if success
+	  								  resultCode[20] = 8; // Success
+	  							  }
+	  							  else resultCode[20] = 7; // Socket service fail
+	  						  }
+	  						  else resultCode[20] = 6; // ip not valid or PDP context deactivated
+	  					  }
+	  					  else resultCode[20] = 5; // could not activate PDP context (tcp-ip)
+	  				  }
+	  				  else resultCode[20] = 4; // could not set PDP context (tcp-ip)
+	  			  }
+	  			  else resultCode[20] = 3; // could not registred to a network
+	  		  }
+	  		  else resultCode[20] = 2; // rssi not valid
+	  	  }
+	  	  else resultCode[20] = 1; // init fail
+	  	  if (resultCode[20] != 8)  (resultCode[9] = sendReceiveCommandT(&bg95, "AT+QPOWD", 1000)); // Power down if not success
+	  	  HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -149,12 +201,48 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3;
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART2|RCC_PERIPHCLK_USART3;
+  PeriphClkInitStruct.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
   PeriphClkInitStruct.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
 }
 
 /**
