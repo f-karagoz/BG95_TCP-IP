@@ -1,38 +1,56 @@
 #include "main.h"
 
 uint8_t flag = 0;						// flag for button press
-uint8_t rxData[50];						// rxData buffer
-uint8_t rxDatai = 0;					// rxData index
-//uint8_t * rxDataP = &rxData;
+uint8_t flag2 = 0;						// flag for toggling with uart
+rxData_TypeDef rxData;
 uint8_t txData[100] = "DEFAULT_VAL";	// txData buffer
 /**
   * @brief  The application entry point.
+  * @details	When communicating as M2M with At commands the response from the device may take up to 40sec.
+  * 			The unpredictable response time causes ORE in the polling method UART.
+  * 			In order to overcome that problem we will be reading data with interrupts to a large buffer.
+  * 			An we will be following the received data'
+  *
+  *
+  *
   * @retval int
   */
 int main(void)
-{
-	systemClockConfig();
+{	systemClockConfig();
 	UartConfig();
 	TIM6Config();
 	GPIO_Config();
 	Interrupt_Config();
 
-	memset(rxData,0,100);	// Empty the rxData buffer
+	rxData.size = buffer_size;
+	memset(rxData.buffer,0,rxData.size);	// Empty the rxData buffer
+	uint8_t myBuffer[100];
 
 	while (1)
 	{
+		while ((validateData(&rxData, '<', '>') % 10 ) != 0);
+		readData(&rxData, myBuffer);
+		flag2 = !flag2;
+		if (flag2 == 0) {
+			GPIOB->BSRR |= (1<<0);			// Set LED
+		}
+		else {
+			GPIOB->BSRR |= (1<<16);			// Reset LED
+		}
+		/*
 		if (flag) {
-			sprintf((char*)txData,"\r\nReceived data: %s\r\n> ",(char*)rxData); // Edit txData with rxData
-			memset(rxData,0,100);		// Clear rxData
-			rxDatai = 0;				// Reset rxData index
+			sprintf((char*)txData,"\r\nReceived data: %s\r\n> ",(char*)rxData.buffer); // Edit txData with rxData
+			memset(rxData.buffer,0,rxData.size);	// Clear rxData
+			rxData.head = 0;				// Reset rxData index
 			UART3_SendData(txData);
-			GPIOB->BSRR |= (1<<0);		// Set LED
+			GPIOB->BSRR |= (1<<0);			// Set LED
 			delay_ms(1000);
 			flag = 0;
 		}
 		else {
-			GPIOB->BSRR |= (1<<16);		// Reset LED
+			GPIOB->BSRR |= (1<<16);			// Reset LED
 		}
+		*/
 	}
 }
 
@@ -114,13 +132,13 @@ void USART3_IRQHandler (void) {
 	****************************************/
 
 	if (USART3->ISR & USART_ISR_RXNE) {
-		rxData[rxDatai] = USART3->RDR;
-		rxDatai++;
+		rxData.buffer[rxData.head] = USART3->RDR;
+		rxData.head++;
 	}
 	else ErrorHandler();
 }
 
 void ErrorHandler (void) {
-	//nop
+	while(1); //gotcha!
 }
 

@@ -10,6 +10,7 @@ extern "C" {
 #include "RccConfig.h"
 #include "Delay.h"
 #include "UartConfig.h"
+#include "App.h"
 #include <string.h>
 #include <stdio.h>
 
