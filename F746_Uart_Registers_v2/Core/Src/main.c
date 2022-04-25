@@ -11,9 +11,7 @@ uint8_t txData[100] = "DEFAULT_VAL";	// txData buffer
   * 			In order to overcome that problem we will be reading data with interrupts to a large buffer.
   * 			An we will be following the received data'
   *
-  * @bug		#1
-  *
-  *
+  * @todo		Handle unexpected start chars.
   *
   * @retval int
   */
@@ -27,10 +25,14 @@ int main(void)
 	rxData.size = buffer_size;
 	memset(rxData.buffer,0,rxData.size);	// Empty the rxData buffer
 	uint8_t myBuffer[100];
+	//uint8_t startCheck[4] = {'A','B','C','\0'};
+	//uint8_t endCheck[3] = {'D','E','\0'};
+	uint8_t startCheck[2] = {'<','\0'};
+	uint8_t endCheck[2] = {'>','\0'};
 
 	while (1)
 	{
-		while ((validateData(&rxData, '<', '>') % 10 ) != 0);
+		while ((validateData(&rxData, startCheck, endCheck) % 10 ) != 0);
 		readData(&rxData, myBuffer);
 		flag2 = !flag2;
 		if (flag2 == 0) {

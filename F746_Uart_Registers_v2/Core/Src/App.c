@@ -1,31 +1,56 @@
 #include "App.h"
 
 
-uint8_t validateData(rxData_TypeDef * rxData, uint8_t startChar, uint8_t endChar) {
-	// For char based validation this process can be shorter. We do not need to check if head overlapped.
-	// If we desire sting based validation for start and end detection this method is ok but need to be updated for string.
+uint8_t validateData(rxData_TypeDef * rxData, uint8_t * startString, uint8_t * endString) {
 	uint8_t resultCode = 9;
-	if (rxData->head > rxData->tail) { 		// Default read
+	uint8_t startS_size = strlen((char*)startString);
+	uint8_t endS_size = strlen((char*)endString);
+	if (rxData->head > rxData->tail) { 										// DEFAULT READ
+		if(rxData->head-rxData->tail < startS_size+endS_size) return 19; 	// The received data is too short to be checked
 		// CHECK FOR VALIDATION AND UPDATE RESULTCODE ACCORDINGLY
-		if (rxData->buffer[rxData->tail] == startChar) { // Start char found correctly
-			resultCode = 1;
-			if (rxData->buffer[rxData->head-1] == endChar) {
+		for (int i=rxData->tail; i<(rxData->tail + startS_size); i++) {		// Validate the start string
+			if (rxData->buffer[i] == startString[i-rxData->tail]) {
 				resultCode = 0;
+			}
+			else return 18;
+		}
+		if (resultCode == 0) {												// If the start string validated check the end string as well.
+			for(int i = (rxData->head - endS_size);i<rxData->head; i++) {
+				if (rxData->buffer[i] == endString[i-rxData->head + endS_size]) {
+					resultCode = 0;
+				}
+				else return 17;
 			}
 		}
 		return (10 + resultCode);
 	}
-	else if (rxData->head < rxData->tail) {	// Buffer completed its ring and started writing from start
+	else if (rxData->head < rxData->tail) {									// WRAPPING READ. Buffer looped to the beginnig.
+		if(rxData->head+(rxData->size - rxData->tail) < startS_size+endS_size) return 29; // The received data is too short to be checked
 		// CHECK FOR VALIDATION AND UPDATE RESULTCODE ACCORDINGLY
-		if (rxData->buffer[rxData->tail] == startChar) { // Start char found correctly
-			resultCode = 1;
-			if (rxData->buffer[rxData->head-1] == endChar) {
+		uint8_t tempB_size = rxData->size - rxData->tail + rxData->head;
+		//uint8_t tempBuffer[tempB_size] = 0;								// Temporary buffer to order the looping received data filed
+		uint8_t tempBuffer[buffer_size];
+		for(int i=0;i<tempB_size;i++) {										// Fill the temp. buffer
+			if (i + rxData->tail < rxData->size)	tempBuffer[i] = rxData->buffer[i + rxData->tail];
+			else 									tempBuffer[i] = rxData->buffer[i - (rxData->size - rxData->tail)];
+		}
+		for (int i=0; i<startS_size; i++) {									// Validate the start string
+			if (tempBuffer[i] == startString[i]) {
 				resultCode = 0;
+			}
+			else return 28;
+		}
+		if (resultCode == 0) {												// If the start string validated check the end string as well.
+			for(int i = (tempB_size - endS_size); i<tempB_size; i++) {
+				if (tempBuffer[i] == endString[i - (tempB_size - endS_size)]) {
+					resultCode = 0;
+				}
+				else return 27;
 			}
 		}
 		return (20 + resultCode);
 	}
-	else {									// head and tail point to same position, no new data
+	else {																	// NO READ. Head and tail point to same position, no new data.
 		return (30 + resultCode);
 	}
 }
@@ -39,7 +64,7 @@ uint8_t readData(rxData_TypeDef * rxData, uint8_t * buffer) {
 		rxData->tail = rxData->head;				// Data read process completed move tail to head
 		return 0;
 	}
-	else if (rxData->head < rxData->tail) {			// Looping read. Buffer completed its ring and started writing from start.
+	else if (rxData->head < rxData->tail) {			// Wrapping read. Buffer completed its ring and started writing from start.
 		uint8_t charCount=0;
 		for (int i = rxData->tail; i<rxData->size; i++) {
 			buffer[i-rxData->tail] = rxData->buffer[i];
@@ -48,22 +73,12 @@ uint8_t readData(rxData_TypeDef * rxData, uint8_t * buffer) {
 		for (int i = 0; i<rxData->head; i++) {
 			buffer[charCount+i] = rxData->buffer[i];
 		}
-		// Termination here
 		buffer[charCount+rxData->head] = 0;			// Termination
 		rxData->tail = rxData->head;				// Data read process completed move tail to head
 		return 1;
 	}
-	else return 2; // Unexpected
+	else return 2; 									// Unexpected
 }
-
-/**
- *  @USAGE
-
-while (( validateData(...) % 10 ) != 0);
-
-readData(&rxData, myBuffer);
-
-*/
 
 
 
