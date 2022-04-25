@@ -5,7 +5,6 @@ uint8_t validateData(rxData_TypeDef * rxData, uint8_t startChar, uint8_t endChar
 	// For char based validation this process can be shorter. We do not need to check if head overlapped.
 	// If we desire sting based validation for start and end detection this method is ok but need to be updated for string.
 	uint8_t resultCode = 9;
-	if ((rxData->head - rxData->tail) <2) return resultCode;
 	if (rxData->head > rxData->tail) { 		// Default read
 		// CHECK FOR VALIDATION AND UPDATE RESULTCODE ACCORDINGLY
 		if (rxData->buffer[rxData->tail] == startChar) { // Start char found correctly

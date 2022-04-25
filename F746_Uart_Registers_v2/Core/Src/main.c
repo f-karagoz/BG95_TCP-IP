@@ -11,6 +11,8 @@ uint8_t txData[100] = "DEFAULT_VAL";	// txData buffer
   * 			In order to overcome that problem we will be reading data with interrupts to a large buffer.
   * 			An we will be following the received data'
   *
+  * @bug		#1
+  *
   *
   *
   * @retval int
@@ -134,6 +136,7 @@ void USART3_IRQHandler (void) {
 	if (USART3->ISR & USART_ISR_RXNE) {
 		rxData.buffer[rxData.head] = USART3->RDR;
 		rxData.head++;
+		if (rxData.head == rxData.size) rxData.head = 0; // Circular buffer
 	}
 	else ErrorHandler();
 }
