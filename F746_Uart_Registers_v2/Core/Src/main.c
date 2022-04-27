@@ -1,9 +1,9 @@
 #include "main.h"
 
-uint8_t flag = 0;						// flag for button press
-uint8_t flag2 = 0;						// flag for toggling with uart
-rxData_TypeDef rxData;
-uint8_t txData[100] = "DEFAULT_VAL";	// txData buffer
+uint8_t Flag = 0;						// Flag for button press
+uint8_t Flag2 = 0;						// Flag for toggling with uart
+rxData_TypeDef RxData;
+uint8_t TxData[100] = "DEFAULT_VAL";	// TxData buffer
 /**
   * @brief  The application entry point.
   * @details	When communicating as M2M with At commands the response from the device may take up to 40sec.
@@ -15,41 +15,46 @@ uint8_t txData[100] = "DEFAULT_VAL";	// txData buffer
   *
   * @retval int
   */
-int main(void)
-{	systemClockConfig();
+int main (void)
+{
+	systemClockConfig();
 	UartConfig();
 	TIM6Config();
 	GPIO_Config();
 	Interrupt_Config();
 
-	rxData.size = buffer_size;
-	memset(rxData.buffer,0,rxData.size);	// Empty the rxData buffer
+	RxData.size = buffer_size;
+	memset ( RxData.buffer, 0, RxData.size );	// Empty the RxData buffer
 	uint8_t myBuffer[100];
-	//uint8_t startCheck[4] = {'A','B','C','\0'};
-	//uint8_t endCheck[3] = {'D','E','\0'};
-	uint8_t startCheck[2] = {'<','\0'};
-	uint8_t endCheck[2] = {'>','\0'};
+	//uint8_t startCheck[4] = { 'A','B','C','\0' };
+	//uint8_t endCheck[3] = { 'D','E','\0' };
+	uint8_t startCheck[2] = { '<','\0' };
+	uint8_t endCheck[2] = { '>','\0' };
 
 	while (1)
 	{
-		while ((validateData(&rxData, startCheck, endCheck) % 10 ) != 0);
-		readData(&rxData, myBuffer);
-		flag2 = !flag2;
-		if (flag2 == 0) {
+		while ( ( validateData( &RxData, startCheck, endCheck ) % 10 ) != 0 );
+		readData ( &RxData, myBuffer );
+		Flag2 = !Flag2;
+
+		if ( Flag2 == 0 )
+		{
 			GPIOB->BSRR |= (1<<0);			// Set LED
 		}
-		else {
+		else
+		{
 			GPIOB->BSRR |= (1<<16);			// Reset LED
 		}
+
 		/*
-		if (flag) {
-			sprintf((char*)txData,"\r\nReceived data: %s\r\n> ",(char*)rxData.buffer); // Edit txData with rxData
-			memset(rxData.buffer,0,rxData.size);	// Clear rxData
-			rxData.head = 0;				// Reset rxData index
-			UART3_SendData(txData);
+		if (Flag) {
+			sprintf((char*)TxData,"\r\nReceived data: %s\r\n> ",(char*)RxData.buffer); // Edit TxData with RxData
+			memset(RxData.buffer,0,RxData.size);	// Clear RxData
+			RxData.head = 0;				// Reset RxData index
+			UART3_SendData(TxData);
 			GPIOB->BSRR |= (1<<0);			// Set LED
 			delay_ms(1000);
-			flag = 0;
+			Flag = 0;
 		}
 		else {
 			GPIOB->BSRR |= (1<<16);			// Reset LED
@@ -123,7 +128,7 @@ void EXTI15_10_IRQHandler(void) {
 	********************************************************/
 
 	if(EXTI->PR & EXTI_PR_PR13) {	// We are checking if this interrupt handler triggered by 13th interrupt line
-		flag = 1;
+		Flag = 1;
 		EXTI->PR |= EXTI_PR_PR13;	// Bit is cleared by writing 1 to it as described in the RM.
 	}
 }
@@ -136,9 +141,9 @@ void USART3_IRQHandler (void) {
 	****************************************/
 
 	if (USART3->ISR & USART_ISR_RXNE) {
-		rxData.buffer[rxData.head] = USART3->RDR;
-		rxData.head++;
-		if (rxData.head == rxData.size) rxData.head = 0; // Circular buffer
+		RxData.buffer[RxData.head] = USART3->RDR;
+		RxData.head++;
+		if (RxData.head == RxData.size) RxData.head = 0; // Circular buffer
 	}
 	else ErrorHandler();
 }

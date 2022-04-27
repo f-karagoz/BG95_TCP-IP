@@ -13,7 +13,8 @@
 
 #define buffer_size 50
 
-typedef struct {
+typedef struct
+{
 	uint8_t size;
 	uint8_t buffer[buffer_size];
 	uint8_t head;
@@ -31,7 +32,7 @@ typedef struct {
  * 			18: Start check fail			28: Start check fail
  * 			19: End check fail				29: End check fail
  */
-uint8_t validateData(rxData_TypeDef * rxData, uint8_t * startString, uint8_t * endString);
+uint8_t validateData ( rxData_TypeDef * rxData, uint8_t * startString, uint8_t * endString );
 
 /**
  * @brief 	Reads received data package considering the overlapping of the head
@@ -44,6 +45,6 @@ uint8_t validateData(rxData_TypeDef * rxData, uint8_t * startString, uint8_t * e
  * @test	while (( validateData(...) % 10 ) != 0);
  * 			readData(&rxData, myBuffer);
  */
-uint8_t readData(rxData_TypeDef * rxData, uint8_t * buffer);
+uint8_t readData ( rxData_TypeDef * rxData, uint8_t * buffer );
 
 #endif /* INC_APP_H_ */
