@@ -29,6 +29,8 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+BG95_TypeDef bg95;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -95,7 +97,7 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  BG95_TypeDef bg95;
+
   bg95.handler = &huart2;
   resetData(&bg95);
   uint8_t resultCode[21];
@@ -109,46 +111,52 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if (resultCode[19] == 0) {
-	  		  resultCode[1] = getQgmr(&bg95);
-	  		  resultCode[0] = getCsq(&bg95);
-	  		  if ((resultCode[0] == 0) && (bg95.csq.rssi != 0x52) && (bg95.csq.rssi != 99)) { // 0x52: R meaning reset cond.
-	  			  resultCode[2] = sendWriteReceiveAtCommand(&bg95, "CREG", "2");
-	  			  resultCode[3] = getCreg(&bg95);
-	  			  if (bg95.creg.stat == 1) // Registered, home network
-	  			  {
-	  				  resultCode[4] = getCops(&bg95);
-	  				  resultCode[5] = setTcpIpContext(&bg95, 1, 1, "internet", "", "", 1);
-	  				  if (resultCode[5] == 0) {
-	  					  resultCode[6] = sendWriteReceiveAtCommandT(&bg95, "QIACT", "1",2000);  // Activate PDP context with ID 1
-	  					  if (resultCode[6] == 0) {
-	  						  resultCode[7] = getQiact(&bg95);
-	  						  uint8_t size = strlen((char*)bg95.qiact.ip);
-	  						  uint8_t count = 0;
-	  						  for (int i=0; i<size; i++) if(bg95.qiact.ip[i] == 0x2E) count++; // 0x2E: .
-	  						  if((count == 3) && (bg95.qiact.cState == 1)) {
-	  							  resultCode[8] = openSocketService(&bg95, 1, 0, "TCP", "184.106.153.149", 80, 0, 1);
-	  							  if (resultCode[8] == 0) {
-	  								  // Done for now. Socket open.
-	  								  resultCode[9] = sendSocket(&bg95, 0, 30); // 0: bg95.qiact.cId
-	  								  resultCode[10] = sendReceiveCommandT(&bg95, "AT+QPOWD", 1000); // Power down if success
-	  								  resultCode[20] = 8; // Success
-	  							  }
-	  							  else resultCode[20] = 7; // Socket service fail
-	  						  }
-	  						  else resultCode[20] = 6; // ip not valid or PDP context deactivated
-	  					  }
-	  					  else resultCode[20] = 5; // could not activate PDP context (tcp-ip)
-	  				  }
-	  				  else resultCode[20] = 4; // could not set PDP context (tcp-ip)
-	  			  }
-	  			  else resultCode[20] = 3; // could not registred to a network
-	  		  }
-	  		  else resultCode[20] = 2; // rssi not valid
-	  	  }
-	  	  else resultCode[20] = 1; // init fail
-	  	  if (resultCode[20] != 8)  (resultCode[9] = sendReceiveCommandT(&bg95, "AT+QPOWD", 1000)); // Power down if not success
-	  	  HAL_Delay(1000);
+	  if (resultCode[19] == 0)
+	  {
+		  resultCode[1] = getQgmr(&bg95);
+		  resultCode[0] = getCsq(&bg95);
+		  if ((resultCode[0] == 0) && (bg95.csq.rssi != 0x52) && (bg95.csq.rssi != 99))		// 0x52: R meaning reset cond.
+		  {
+			  resultCode[2] = sendWriteReceiveAtCommand(&bg95, "CREG", "2", (uint8_t *) "AT+CREG\0", (uint8_t *) "OK\r\n\0");
+			  resultCode[3] = getCreg(&bg95);
+			  if (bg95.creg.stat == 1) // Registered, home network
+			  {
+				  resultCode[4] = getCops(&bg95);
+				  resultCode[5] = setTcpIpContext(&bg95, 1, 1, "internet", "", "", 1);
+				  if (resultCode[5] == 0)
+				  {
+					  resultCode[6] = sendWriteReceiveAtCommandT(&bg95, "QIACT", "1", (uint8_t *) "AT+QIACT\0", (uint8_t *) "OK\r\n\0", 2000);  // Activate PDP context with ID 1
+					  if (resultCode[6] == 0)
+					  {
+						  resultCode[7] = getQiact(&bg95);
+						  uint8_t size = strlen((char*)bg95.qiact.ip);
+						  uint8_t count = 0;
+						  for (int i=0; i<size; i++) if(bg95.qiact.ip[i] == 0x2E) count++; // 0x2E: .
+						  if((count == 3) && (bg95.qiact.cState == 1))
+						  {
+							  resultCode[8] = openSocketService(&bg95, 1, 0, "TCP", "184.106.153.149", 80, 0, 1);
+							  if (resultCode[8] == 0)
+							  {
+								  // Done for now. Socket open.
+								  resultCode[9] = sendSocket(&bg95, 0, 30); // 0: bg95.qiact.cId
+								  resultCode[10] = sendReceiveCommandT(&bg95, "AT+QPOWD", (uint8_t *) "AT+QPOWD\0", (uint8_t *) "DOWN\r\n\0", 1000); // Power down if success
+								  resultCode[20] = 8; // Success
+							  }
+							  else resultCode[20] = 7; // Socket service fail
+						  }
+						  else resultCode[20] = 6; // ip not valid or PDP context deactivated
+					  }
+					  else resultCode[20] = 5; // could not activate PDP context (tcp-ip)
+				  }
+				  else resultCode[20] = 4; // could not set PDP context (tcp-ip)
+			  }
+			  else resultCode[20] = 3; // could not registred to a network
+		  }
+		  else resultCode[20] = 2; // rssi not valid
+	  }
+	  else resultCode[20] = 1; // init fail
+	  if (resultCode[20] != 8)  (resultCode[9] = sendReceiveCommandT(&bg95, "AT+QPOWD", (uint8_t *) "AT+QPOWD\0", (uint8_t *) "DOWN\r\n\0", 1000)); // Power down if not success
+	  HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -315,6 +323,23 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void USART2_IRQHandler (void) {
+	/*********** STEPS FOLLOWED *************
+	1. Check that interrupt is caused by RXNE
+	2. If so read the data into the array member pointed by the pointer
+	3. If interrupt is not caused by RXNE (which is not expected) run the ErrorHandler
+	****************************************/
+
+	if (USART2->ISR & USART_ISR_RXNE)
+	{
+		bg95.RxData.buffer[bg95.RxData.head] = USART2->RDR;
+		bg95.RxData.head++;
+		if (bg95.RxData.head == bg95.RxData.size) bg95.RxData.head = 0; // Circular buffer
+	}
+	else Error_Handler();
+}
+
 
 /* USER CODE END 4 */
 

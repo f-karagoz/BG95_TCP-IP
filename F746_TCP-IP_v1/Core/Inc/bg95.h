@@ -6,7 +6,7 @@
  *
  * @todo	AT+QIOPEN=... 	(DONE, PARTIAL CONTROL)
  * 			AT+QISTATE=... 	(TO DO)
- * 			AT+QISEND=...	(DOING)
+ * 			AT+QISEND=...	(DONE)
  * 			AT+QICLOSE=...	(TO DO)
  *
  * @note	About the contextID and connectID. Context is related to PDP definition and contextID is for the ongoing PDP context.
@@ -21,6 +21,7 @@
 #include <string.h>	//for strlen()
 #include <stdio.h>  // for sprintf()
 //#include <stdlib.h> // for atoi()
+#include "App.h"
 
 /**
  * @brief CSQ command variables.
@@ -65,12 +66,12 @@ typedef struct {
 	uint8_t ip[40];		/*!< Local IP address after context is activated.	*/
 }QIACT_TypeDef;
 
-
 /**
  * @brief BG95_TypeDef stores data related to the module operation.
  *
  */
 typedef struct {
+	rxData_TypeDef RxData;
 	UART_HandleTypeDef * handler; 	/*!< Pointer to the UART handler that device is connected.		*/
 	CSQ_TypeDef csq;				/*!< CSQ variables. RSSI and ber.								*/
 	uint8_t qgmr[50];				/*!< Software version of the device.							*/
@@ -84,25 +85,30 @@ typedef struct {
  * @brief Used for collecting received UART data to a buffer.
  * 			Fills up the buffer with '~' first in order to detect the end of the received data package.
  *
- * @param device 	Pointer to the BG95 device object.
- * @param buffer	Pointer to a buffer to be filled.
+ * @param 	device 		Pointer to the BG95 device object.
+ * @param 	buffer		Pointer to a buffer to be filled.
+ * @param 	startCheck	Start string needs to be detected for validation
+ * @param 	endCheck	End string needs to be detected for validation
  * @return 	0: Success
  * 			1: HAL_TIMEOUT. Whole or some data may be received. Also, this may occur due to high buffer size.
  * 			2: UART fails to receive data.
  */
-uint8_t receiveAtResponse(BG95_TypeDef * device, uint8_t * buffer);
+uint8_t receiveAtResponse(BG95_TypeDef * device, uint8_t * buffer, uint8_t * startCheck, uint8_t * endCheck);
+
 /**
  * @brief Used for collecting received UART data to a buffer.
  * 			Fills up the buffer with '~' first in order to detect the end of the received data package.
  *
- * @param device	Pointer to the BG95 device object.
- * @param buffer	Pointer to a buffer to be filled.
- * @param timeout	Timeout for UART Rx operation in ms.
+ * @param 	device		Pointer to the BG95 device object.
+ * @param 	buffer		Pointer to a buffer to be filled.
+ * @param 	startCheck	Start string needs to be detected for validation
+ * @param 	endCheck	End string needs to be detected for validation
+ * @param 	timeout		Timeout for UART Rx operation in ms.
  * @return	0: Success
  * 			1: HAL_TIMEOUT. Whole or some data may be received. Also, this may occur due to high buffer size.
  * 			2: UART fails to receive data.
  */
-uint8_t receiveAtResponseT(BG95_TypeDef * device, uint8_t * buffer, uint32_t timeout);
+uint8_t receiveAtResponseT(BG95_TypeDef * device, uint8_t * buffer, uint8_t * startCheck, uint8_t * endCheck, uint32_t timeout);
 
 /**
  * @brief When specified character encountered in an char array data collection starts.
@@ -144,6 +150,8 @@ uint8_t sendPlain(BG95_TypeDef * device, char* command);
  *
  * @param device		Pointer to the BG95 device object.
  * @param command		Pointer to the command char array.
+ * @param 	startCheck	Start string needs to be detected for validation
+ * @param 	endCheck	End string needs to be detected for validation
  * @param timeout		Timeout for UART RX.
  * @return	0: Success
  * 			1: Failed to send AT command
@@ -152,7 +160,7 @@ uint8_t sendPlain(BG95_TypeDef * device, char* command);
  * 			4: Did not receive OK message.
  * 			5: ERROR received.
  */
-uint8_t sendReceiveCommandT(BG95_TypeDef * device, char* command, uint32_t timeout);
+uint8_t sendReceiveCommandT(BG95_TypeDef * device, char* command, uint8_t * startCheck, uint8_t * endCheck, uint32_t timeout);
 
 /**
  * @brief 	Sends AT+command type EXECUTION command through UART line
@@ -196,6 +204,8 @@ uint8_t sendWriteAtCommand(BG95_TypeDef * device, char* command, char* parameter
  * @param device		Pointer to the BG95 device object.
  * @param command		Pointer to the command char array.
  * @param parameters	Pointer to the parameters char array.
+ * @param 	startCheck	Start string needs to be detected for validation
+ * @param 	endCheck	End string needs to be detected for validation
  * @return	0: Success
  * 			1: Failed to send AT command
  * 			2: Failed to receive AT command
@@ -203,7 +213,7 @@ uint8_t sendWriteAtCommand(BG95_TypeDef * device, char* command, char* parameter
  * 			4: Did not receive OK message.
  * 			5: ERROR received.
  */
-uint8_t sendWriteReceiveAtCommand(BG95_TypeDef * device, char* command, char* parameters);
+uint8_t sendWriteReceiveAtCommand(BG95_TypeDef * device, char* command, char* parameters, uint8_t * startCheck, uint8_t * endCheck);
 
 /**
  * @brief	Sends AT+command=parameters type READ command through UART line
@@ -211,10 +221,12 @@ uint8_t sendWriteReceiveAtCommand(BG95_TypeDef * device, char* command, char* pa
  * 			also receives the response and looks for 'OK'.
  * 			also receives with a timeout
  *
- * @param device		Pointer to the BG95 device object.
- * @param command		Pointer to the command char array.
- * @param parameters	Pointer to the parameters char array.
- * @param timeout		Timeout for UART RX line in ms.
+ * @param 	device		Pointer to the BG95 device object.
+ * @param 	command		Pointer to the command char array.
+ * @param 	parameters	Pointer to the parameters char array.
+ * @param 	startCheck	Start string needs to be detected for validation
+ * @param 	endCheck	End string needs to be detected for validation
+ * @param 	timeout		Timeout for UART RX line in ms.
  * @return	0: Success
  * 			1: Failed to send AT command
  * 			2: Failed to receive AT command
@@ -222,23 +234,25 @@ uint8_t sendWriteReceiveAtCommand(BG95_TypeDef * device, char* command, char* pa
  * 			4: Did not receive OK message.
  * 			5: ERROR received.
  */
-uint8_t sendWriteReceiveAtCommandT(BG95_TypeDef * device, char* command, char* parameters, uint32_t timeout);
+uint8_t sendWriteReceiveAtCommandT(BG95_TypeDef * device, char* command, char* parameters, uint8_t * startCheck, uint8_t * endCheck, uint32_t timeout);
 
 /**
  * @brief 	Sends AT+command=parameters type READ command through UART line
  * 			also the command is ended with CR LF
  * 			also receives the response and looks for '>'.
  *
- * @param device		Pointer to the BG95 device object.
- * @param command		Pointer to the command char array.
- * @param parameters	Pointer to the parameters char array.
+ * @param 	device		Pointer to the BG95 device object.
+ * @param 	command		Pointer to the command char array.
+ * @param 	parameters	Pointer to the parameters char array.
+ * @param 	startCheck	Start string needs to be detected for validation
+ * @param 	endCheck	End string needs to be detected for validation
  * @return	0: Success
  * 			1: Failed to send AT command
  * 			2: Failed to receive AT command
  * 			3: Failed to get between AT command
  * 			4: Did not receive valid response character.
  */
-uint8_t sendWriteReceiveAtCommandS(BG95_TypeDef * device, char* command, char* parameters);
+uint8_t sendWriteReceiveAtCommandS(BG95_TypeDef * device, char* command, char* parameters, uint8_t * startCheck, uint8_t * endCheck);
 
 /**
  * @brief Resets data fields of the BG95 object.
@@ -377,6 +391,9 @@ uint8_t openSocketService(BG95_TypeDef * device, uint8_t cId, uint8_t connectId,
 
 /**
  * @brief	Sends data through previously opened socket service.
+ *
+ * @details	We are sending data as plain without CR LF terminations.
+ * 			Otherwise the message context will not be interpreted correctly.
  *
  * @param device	Device GSM device struct address.
  * @param connectId	Socket connect id

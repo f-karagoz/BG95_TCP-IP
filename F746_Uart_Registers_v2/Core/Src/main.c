@@ -12,6 +12,7 @@ uint8_t TxData[100] = "DEFAULT_VAL";	// TxData buffer
   * 			An we will be following the received data'
   *
   * @todo		Handle unexpected start chars.
+  * @todo		Handle buffer overflow.
   *
   * @retval int
   */
