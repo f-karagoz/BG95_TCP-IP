@@ -276,26 +276,36 @@ uint8_t sendWriteReceiveAtCommandS(BG95_TypeDef * device, char* command, char* p
 void resetData(BG95_TypeDef * device)
 {
 	uint8_t resetVal = 82;
+
 	device->csq.rssi= resetVal; // 57 is arbitrary default value for testing
 	device->csq.ber = resetVal; // 0 is arbitrary default value for testing
+
 	memset(device->qgmr,resetVal,50);
 	device->qgmr[50] = 0x00;
+
 	device->creg.n = resetVal;
 	device->creg.stat = resetVal;
 	memset(device->creg.lac,resetVal,4);
 	memset(device->creg.ci,resetVal,4);
 	device->creg.act = resetVal;
+
 	device->cops.mode = resetVal;
 	device->cops.format = resetVal;
 	memset(device->cops.oper,resetVal,19);
 	device->cops.oper[20] = 0x00;
 	device->cops.act = resetVal;
+
 	device->qiact.cId = resetVal;
 	device->qiact.cState = resetVal;
 	device->qiact.cType = resetVal;
 	memset(device->qiact.ip,resetVal,39);
 	device->qiact.ip[40] = 0x00;
+
 	device->cfun = resetVal;
+
+	device->SR &= 0x00000000;
+
+	device->swState = 0;
 }
 
 uint8_t resetDevice(BG95_TypeDef * device)
@@ -393,7 +403,7 @@ uint8_t getCsq(BG95_TypeDef * device)
 		uint8_t startCheck[] = "AT+CSQ\r\r\n";
 		uint8_t endCheck[] = "OK\r\n";
 
-		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, 500) != 2)
+		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, 350) != 2) /*!< Max. spec. time 300 ms */
 		{
 			uint8_t parBuf[50];
 			// fill up the buffer in order to remove the \0s
@@ -433,7 +443,7 @@ uint8_t getQgmr(BG95_TypeDef * device)
 		uint8_t startCheck[] = "AT+QGMR\r\r\n";
 		uint8_t endCheck[] = "OK\r\n";
 
-		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, 500) != 2)
+		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, 350) != 2) /*!< Max. spec. time 300 ms */
 		{
 			uint8_t parBuf[50];
 			// fill up the buffer in order to remove the \0s
@@ -465,7 +475,7 @@ uint8_t getCreg(BG95_TypeDef * device)
 		uint8_t startCheck[] = "AT+CREG?\r\r\n\0";
 		uint8_t endCheck[] = "OK\r\n\0";
 
-		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, 500) != 2)
+		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, 350) != 2) /*!< Max. spec. time 300 ms */
 		{
 			uint8_t parBuf[50];
 			// fill up the buffer in order to remove the \0s
@@ -519,7 +529,7 @@ uint8_t getCops(BG95_TypeDef * device)
 		uint8_t startCheck[] = "AT+COPS?\r\r\n\0";
 		uint8_t endCheck[] = "OK\r\n\0";
 
-		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, 500) != 2)
+		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, 1500) != 2) /*!< Max. spec. time 180 s */
 		{
 			uint8_t parBuf[50];
 			// fill up the buffer in order to remove the \0s
@@ -567,7 +577,7 @@ uint8_t setTcpIpContext(BG95_TypeDef * device, uint8_t cId, uint8_t cType, char 
 {
 	uint8_t parBuf[100];
 	sprintf((char*)parBuf, "%d,%d,\"%s\",\"%s\",\"%s\",%d",cId,cType,Apn,name,pw,aut);
-	return sendWriteReceiveAtCommand(device, "QICSGP", (char*)parBuf, (uint8_t *) "AT+QICSGP\0", (uint8_t *) "OK\r\n");
+	return sendWriteReceiveAtCommandT(device, "QICSGP", (char*)parBuf, (uint8_t *) "AT+QICSGP\0", (uint8_t *) "OK\r\n", 350);  /*!< Max. spec. time 300 ms */
 }
 
 uint8_t getQiact(BG95_TypeDef * device)
@@ -581,7 +591,7 @@ uint8_t getQiact(BG95_TypeDef * device)
 		uint8_t startCheck[] = "AT+QIACT?\r\r\n";
 		uint8_t endCheck[] = "OK\r\n";
 
-		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, 500) != 2)
+		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, 1500) != 2)  /*!< Max. spec. time 150 s */
 		{
 			uint8_t parBuf[50];
 			// fill up the buffer in order to remove the \0s
@@ -630,6 +640,7 @@ uint8_t openSocketService(BG95_TypeDef * device, uint8_t cId, uint8_t connectId,
 {
 	uint8_t parBuf[100];
 	sprintf((char*)parBuf, "%d,%d,\"%s\",\"%s\",%d,%d,%d",cId,connectId,sType,ip,rPort,lPort,aMode);
+	/*! Max. spec. time 150 s 	*/
 	return sendWriteReceiveAtCommandT(device, "QIOPEN", (char*)parBuf, (uint8_t *) "AT+QIOPEN\0", (uint8_t *) "+QIOPEN: 0,0\r\n\0", 3000);
 }
 
@@ -640,15 +651,24 @@ uint8_t sendSocket(BG95_TypeDef * device, uint8_t connectId, uint8_t data)
 	uint8_t response = 9;
 	char test[1] = "0";
 
+	/*! Max. spec. time 150 s 	*/
 	if ((response = sendWriteReceiveAtCommandS(device, "QISEND", test, (uint8_t *) "AT+QISEND\0", (uint8_t *) "> \0")) == 0)
 	{
 		// send data here
 		uint8_t package[100];
 		memset(package,0,100);
 		//  GET https://api.thingspeak.com/update?api_key=3XX0ILLFNZCYAQNS&field1=%d\x1a
+		/*! 0x1A needed to terminate the command */
 		sprintf((char*)package,"GET https://api.thingspeak.com/update?api_key=UZ0ALREJ46G1IZED&field1=%d\r\n\x1a",data);
 		sendPlain(device, (char*)package);
 		return 0;
 	}
 	else return response;
+}
+
+uint8_t app_Error_Handler (uint8_t * resultCode)
+{
+	// For now...
+	while (1);
+	return 0;
 }

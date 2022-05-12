@@ -78,7 +78,9 @@ typedef struct {
 	CREG_TypeDef creg;				/*!< CREG variables. n, stat, lac, ci, and act.					*/
 	COPS_TypeDef cops;				/*!< COPS variables. mode, format, oper, act.					*/
 	QIACT_TypeDef qiact;			/*!< QIACT variables. 											*/
-	uint8_t cfun;
+	uint8_t cfun;					/*!< Functionality level of UE. 								*/
+	uint32_t SR;					/*!< Status Register of application. 							*/
+	uint8_t swState;				/*!< Application software state 		 						*/
 }BG95_TypeDef;
 
 /**
@@ -405,6 +407,16 @@ uint8_t openSocketService(BG95_TypeDef * device, uint8_t cId, uint8_t connectId,
  * 			4: Did not receive valid response character.
  */
 uint8_t sendSocket(BG95_TypeDef * device, uint8_t connectId, uint8_t data);
+
+/**
+ * @brief 	Error handler for application function.
+ * @details	These errors are due to the un-validated data.
+ * @todo	Alter the receive functions in order to not to discard the unvalidated data fields.
+ * 			Switch case for error handler needed sw states.
+ *
+ * @return	Will be defined...
+ */
+uint8_t app_Error_Handler (uint8_t * resultCode);
 
 
 #endif /* BG95_H_ */

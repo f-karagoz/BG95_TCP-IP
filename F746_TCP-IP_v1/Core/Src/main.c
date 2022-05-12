@@ -99,42 +99,133 @@ int main(void)
 
 
   bg95.handler = &huart2;
-  resetData(&bg95);
+
   uint8_t resultCode[21];
   memset(resultCode,'R',21);
 
-  resultCode[19] = initDevice(&bg95); // app
+  //resultCode[19] = initDevice(&bg95); // app
 
+  /*! New Application Start Here (v2) 				*/
+  bg95.swState = 10;
+  resultCode[0] = initDevice(&bg95);
+
+  if ( resultCode[0] != 0 )
+  {
+	  app_Error_Handler( &resultCode[0] );		// AT+CFUN=1 may response ERROR
+  }
+
+  resultCode[1] = getQgmr(&bg95);
+  resultCode[2] = getCsq(&bg95);
+
+  if ( (resultCode[2] != 0) || (bg95.csq.rssi == 0x52) || (bg95.csq.rssi == 99) )		/*!< 0x52: R : default app. reset value */
+  {
+	  app_Error_Handler( &resultCode[2] );		// AT+CSQ may response two different ERRORs
+  }
+
+  resultCode[3] = sendWriteReceiveAtCommandT(&bg95, "CREG", "2", (uint8_t *) "AT+CREG\0", (uint8_t *) "OK\r\n\0", 350);  /*!< Max. spec. time 300 ms */
+
+  if ( resultCode[3] != 0 )
+  {
+	  app_Error_Handler( &resultCode[3] );		// AT+CREG=2 may response ERROR
+  }
+
+  resultCode[4] = getCreg(&bg95);
+
+  if (bg95.creg.stat != 1)
+  {
+	  app_Error_Handler( NULL );				// Device may not be registered to a home network
+  }
+
+  resultCode[5] = getCops(&bg95);
+
+  if ( resultCode[5] != 0 )
+  {
+	  app_Error_Handler( &resultCode[5] );		// AT+COPS? may response ERROR
+  }
+
+  resultCode[6] = setTcpIpContext(&bg95, 1, 1, "internet", "", "", 1);
+
+  if ( resultCode[6] != 0 )
+  {
+	  app_Error_Handler( &resultCode[6] );		// AT+QICSGP=... may response ERROR
+  }
+
+  /*! Activate PDP context with ID 1 				*/
+  /*! Max. spec. time 150 s 						*/
+  resultCode[7] = sendWriteReceiveAtCommandT(&bg95, "QIACT", "1", (uint8_t *) "AT+QIACT\0", (uint8_t *) "OK\r\n\0", 2000);
+
+  if ( resultCode[7] != 0 )
+  {
+	  app_Error_Handler( &resultCode[7] );		// AT+QIACT=1 may response ERROR
+  }
+
+  resultCode[8] = getQiact(&bg95);
+  uint8_t size = strlen((char*)bg95.qiact.ip);
+  uint8_t count = 0;
+  for (int i=0; i<size; i++) if(bg95.qiact.ip[i] == 0x2E) count++; // 0x2E: .
+
+  if( ( count != 3 ) || ( bg95.qiact.cState != 1 ) )
+  {
+	  app_Error_Handler( NULL );				// IP may be unvalid or connection may not be established
+  }
+
+  /*!								THIS SECTION WILL BEMOVED TO A FUNCTION 								*/
+
+  resultCode[9] = openSocketService(&bg95, 1, 0, "TCP", "184.106.153.149", 80, 0, 1);
+
+  if ( resultCode[9] != 0 )
+  {
+	  app_Error_Handler( &resultCode[9] );		// AT+QIOPEN=... ; <result> check needed for fault, ERROR may come too
+  }
+
+  resultCode[10] = sendSocket(&bg95, 0, 30); // 0: bg95.qiact.cId
+
+  if ( resultCode[10] != 0 )
+  {
+	  app_Error_Handler( &resultCode[10] );		// AFTER AT+SEND=0 and sending data, device may response SEND FAIL AND ERROR
+  }
+
+
+  /*! New Application End Here (v2) 				*/
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  /*
 	  if (resultCode[19] == 0)
 	  {
 		  resultCode[1] = getQgmr(&bg95);
 		  resultCode[0] = getCsq(&bg95);
+
 		  if ((resultCode[0] == 0) && (bg95.csq.rssi != 0x52) && (bg95.csq.rssi != 99))		// 0x52: R meaning reset cond.
 		  {
-			  resultCode[2] = sendWriteReceiveAtCommand(&bg95, "CREG", "2", (uint8_t *) "AT+CREG\0", (uint8_t *) "OK\r\n\0");
+			  resultCode[2] = sendWriteReceiveAtCommand(&bg95, "CREG", "2", (uint8_t *) "AT+CREG\0", (uint8_t *) "OK\r\n\0");  // Max. spec. time 300 ms
 			  resultCode[3] = getCreg(&bg95);
+
 			  if (bg95.creg.stat == 1) // Registered, home network
 			  {
 				  resultCode[4] = getCops(&bg95);
 				  resultCode[5] = setTcpIpContext(&bg95, 1, 1, "internet", "", "", 1);
+
 				  if (resultCode[5] == 0)
 				  {
-					  resultCode[6] = sendWriteReceiveAtCommandT(&bg95, "QIACT", "1", (uint8_t *) "AT+QIACT\0", (uint8_t *) "OK\r\n\0", 2000);  // Activate PDP context with ID 1
+					  // Activate PDP context with ID 1
+					  // Max. spec. time 150 s
+					  resultCode[6] = sendWriteReceiveAtCommandT(&bg95, "QIACT", "1", (uint8_t *) "AT+QIACT\0", (uint8_t *) "OK\r\n\0", 2000);
+
 					  if (resultCode[6] == 0)
 					  {
 						  resultCode[7] = getQiact(&bg95);
 						  uint8_t size = strlen((char*)bg95.qiact.ip);
 						  uint8_t count = 0;
 						  for (int i=0; i<size; i++) if(bg95.qiact.ip[i] == 0x2E) count++; // 0x2E: .
+
 						  if((count == 3) && (bg95.qiact.cState == 1))
 						  {
 							  resultCode[8] = openSocketService(&bg95, 1, 0, "TCP", "184.106.153.149", 80, 0, 1);
+
 							  if (resultCode[8] == 0)
 							  {
 								  // Done for now. Socket open.
@@ -155,8 +246,10 @@ int main(void)
 		  else resultCode[20] = 2; // rssi not valid
 	  }
 	  else resultCode[20] = 1; // init fail
+
 	  if (resultCode[20] != 8)  (resultCode[9] = sendReceiveCommandT(&bg95, "AT+QPOWD", (uint8_t *) "AT+QPOWD\0", (uint8_t *) "DOWN\r\n\0", 1000)); // Power down if not success
 	  HAL_Delay(1000);
+	  */
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
