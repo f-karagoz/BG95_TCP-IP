@@ -9,7 +9,7 @@ uint8_t validateData ( rxData_TypeDef * rxData, uint8_t * startString, uint8_t *
 
 	if ( rxData->head > rxData->tail ) 										/* DEFAULT READ													*/
 	{
-		if ( rxData->head - rxData->tail < startS_size + endS_size )		/* The received data is too short to be checked				*/
+		if ( rxData->head - rxData->tail < startS_size + endS_size )		/* The received data is too short to be checked					*/
 		{
 			return 19;
 		}
@@ -81,7 +81,7 @@ uint8_t validateData ( rxData_TypeDef * rxData, uint8_t * startString, uint8_t *
 		return ( 20 + resultCode );
 	}
 	else
-	{																	/* NO READ. Head and tail point to same position - No new data.	*/
+	{																		/* NO READ. Head and tail point to same position - No new data.	*/
 		return ( 30 + resultCode );
 	}
 }

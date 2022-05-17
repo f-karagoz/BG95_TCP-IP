@@ -58,7 +58,12 @@ uint8_t receiveAtResponseT(BG95_TypeDef * device, uint8_t * buffer, uint8_t * st
 			return 0;
 		}
 	}
-	device->RxData.tail = device->RxData.head;	/*!< In case we received some un-validated data we virtually clear the data field for future	*/
+	if ( device->RxData.head != device->RxData.tail )
+	{
+		readData ( &(device->RxData), buffer );			/*!< Un-validated read. Received data may contain ERROR response.	*/
+		return 1;
+	}
+	//device->RxData.tail = device->RxData.head;	/*!< In case we received some un-validated data we virtually clear the data field for future	*/
 	return 2;
 }
 
@@ -117,7 +122,7 @@ uint8_t sendCommand(BG95_TypeDef * device, char* command)
 	else return 0;
 }
 
-uint8_t sendPlain(BG95_TypeDef * device, char* command)
+uint8_t send_plain(BG95_TypeDef * device, char* command)
 {
 	uint8_t com_buf[100];
 	memset(com_buf,'\0',100);
@@ -131,7 +136,7 @@ uint8_t sendPlain(BG95_TypeDef * device, char* command)
 
 uint8_t sendReceiveCommandT(BG95_TypeDef * device, char* command, uint8_t * startCheck, uint8_t * endCheck, uint32_t timeout)
 {
-	if (sendCommand(device, command) == 0 )
+	if ( sendCommand(device, command) == 0 )
 	{
 		uint8_t rxBuf[100];
 		for(int i=0; i<100; i++) rxBuf[i]='~'; 					// we may change this as memset
@@ -169,6 +174,7 @@ uint8_t sendAtCommand(BG95_TypeDef * device, char* command)
 	else return 0;
 }
 
+/*
 uint8_t sendReadAtCommand(BG95_TypeDef * device, char* command)
 {
 	uint8_t com_buf[100];
@@ -180,6 +186,7 @@ uint8_t sendReadAtCommand(BG95_TypeDef * device, char* command)
 	if (retVal != HAL_OK) return 1;
 	else return 0;
 }
+*/
 
 uint8_t sendWriteAtCommand(BG95_TypeDef * device, char* command, char* parameters)
 {
@@ -239,7 +246,12 @@ uint8_t sendWriteReceiveAtCommandT(BG95_TypeDef * device, char* command, char* p
 				if ((parBuf[0] == 'O') && (parBuf[1] == 'K')) return 0;
 				/*!< ERROR received	*/
 				else if ((parBuf[0] == 'E') && (parBuf[1] == 'R') && (parBuf[2] == 'R') && (parBuf[3] == 'O') && (parBuf[4] == 'R') ) return 5;
-				else return 4;						/*!< Did not receive OK					*/
+				else								/*!< Did not receive OK					*/
+				{
+					//uint8_t size = strlen( (char*) parBuf );
+					//for ( int i = 0; i<size; i++ ) device->invalidResponse[i] = parBuf[i];
+					return 4;
+				}
 			}
 			else return 3;							/*!< Failed to get between AT command 	*/
 		}
@@ -264,6 +276,32 @@ uint8_t sendWriteReceiveAtCommandS(BG95_TypeDef * device, char* command, char* p
 			if (getBetween(rxBuf, parBuf, 0x0A, 0x20) != 1 )	/*!< LF: 0x0A, space: 0x20 		*/
 			{
 				if ((parBuf[0] == '>')) return 0;
+				else return 4;						/*!< Did not receive OK					*/
+			}
+			else return 3;							/*!< Failed to get between AT command 	*/
+		}
+		else return 2;								/*!< Failed to receive AT command 		*/
+	}
+	else return 1; 									/*!< Failed to send AT command 			*/
+}
+
+uint8_t send_plain_receive_at_command_timeout(BG95_TypeDef * device, char* command, uint8_t * startCheck, uint8_t * endCheck, uint32_t timeout)
+{
+	if (send_plain(device, command) == 0 )
+	{
+		uint8_t rxBuf[150];
+		for(int i=0; i<150; i++) rxBuf[i]='~'; 					// we may change this as memset
+		rxBuf[149] = '\0';
+
+		if (receiveAtResponseT(device, rxBuf, startCheck, endCheck, timeout) != 2)
+		{
+			uint8_t parBuf[150];
+			// fill up the buffer in order to remove the \0s
+			for(int i=0; i<150; i++) parBuf[i]='~'; 					// we may change this as memset
+
+			if (getBetween(rxBuf, parBuf, 0x0A, 0x20) != 1 )	/*!< LF: 0x0A, space: 0x20 		*/
+			{
+				if ((parBuf[0] == '>')) return 0;	// Will be changed...
 				else return 4;						/*!< Did not receive OK					*/
 			}
 			else return 3;							/*!< Failed to get between AT command 	*/
@@ -310,9 +348,17 @@ void resetData(BG95_TypeDef * device)
 
 uint8_t resetDevice(BG95_TypeDef * device)
 {
+	/*! Enable RX interrupts */
+	USART2->CR1 |= USART_CR1_RXNEIE;
+	NVIC_SetPriority(USART2_IRQn,0);				// Set interrupt priority
+	NVIC_EnableIRQ(USART2_IRQn);					// Enable the USART2 interrupts on NVIC line
+
+	resetData(device);
+	device->RxData.size = BUFFER_SIZE;
+
 	resetData(device);
 	uint8_t response = 0;
-	if ((response = sendWriteReceiveAtCommandT(device, "CFUN", "0", (uint8_t *) "AT+CFUN\0", (uint8_t *) "OK\r\n\0", 3000)) == 0)
+	if ( ( response = sendWriteReceiveAtCommandT( device, "CFUN", "0", (uint8_t *) "AT+CFUN\0", (uint8_t *) "OK\r\n\0", 3000 ) ) == 0 )
 	{
 		if ((response = sendWriteReceiveAtCommandT(device, "CFUN", "1", (uint8_t *) "AT+CFUN\0", (uint8_t *) "OK\r\n\0", 1500)) == 0) return 0;
 		else return (20 + response); 	//Could not turn on the device
@@ -324,6 +370,7 @@ uint8_t initDevice(BG95_TypeDef * device)
 {
 	/*! Enable RX interrupts */
 	USART2->CR1 |= USART_CR1_RXNEIE;
+	NVIC_SetPriority(USART2_IRQn,0);				// Set interrupt priority
 	NVIC_EnableIRQ(USART2_IRQn);					// Enable the USART2 interrupts on NVIC line
 
 	resetData(device);
@@ -349,6 +396,7 @@ uint8_t initDevice(BG95_TypeDef * device)
 				count = 0;
 				while((device->cfun != 1) && (count<5))			 // Attempt to set CFUN to 1
 				{
+					device->swState = 11;
 					response = sendWriteReceiveAtCommandT(device, "CFUN", "1", (uint8_t *) "AT+CFUN\0", (uint8_t *) "OK\r\n\0", 1500);
 					getCfun(device);
 				}
@@ -627,7 +675,11 @@ uint8_t getQiact(BG95_TypeDef * device)
 				}
 				else return 4; 									/*!< Unsupported result code or more than one active PDP context.	*/
 			}
-			else return 3;										/*!< Failed to get between AT command 			*/
+			else												/*!< Failed to get between AT command 			*/
+			{
+				memset(device->qiact.ip,0,20);					// Reset the IP
+				return 3;
+			}
 		}
 		else return 2;											/*!< Failed to receive AT command 				*/
 	}
@@ -649,10 +701,10 @@ uint8_t sendSocket(BG95_TypeDef * device, uint8_t connectId, uint8_t data)
 	// check for receiving ">"
 	// then send the data, and maybe wait for the response
 	uint8_t response = 9;
-	char test[1] = "0";
+	char test[1] = "0";						// Will be changed...
 
 	/*! Max. spec. time 150 s 	*/
-	if ((response = sendWriteReceiveAtCommandS(device, "QISEND", test, (uint8_t *) "AT+QISEND\0", (uint8_t *) "> \0")) == 0)
+	if ((response = sendWriteReceiveAtCommandS(device, "QISEND", test, (uint8_t *) "AT+QISEND\0", (uint8_t *) "> \0")) == 0)	// Will be changed...
 	{
 		// send data here
 		uint8_t package[100];
@@ -660,15 +712,104 @@ uint8_t sendSocket(BG95_TypeDef * device, uint8_t connectId, uint8_t data)
 		//  GET https://api.thingspeak.com/update?api_key=3XX0ILLFNZCYAQNS&field1=%d\x1a
 		/*! 0x1A needed to terminate the command */
 		sprintf((char*)package,"GET https://api.thingspeak.com/update?api_key=UZ0ALREJ46G1IZED&field1=%d\r\n\x1a",data);
-		sendPlain(device, (char*)package);
-		return 0;
+
+		//send_plain(device, (char*)package);
+
+		 // We do not check response for now...
+		//send_plain_receive_at_command_timeout(device, (char*)package, (uint8_t *) "GET \0", (uint8_t *) "+QIURC: \"closed\",0\r\n\0", 5000);
+		uint8_t testRet = 0;
+		testRet = send_plain_receive_at_command_timeout(device, (char*)package, (uint8_t *) "GET \0", (uint8_t *) ",0\r\n\0", 5000);
+		//HAL_Delay(5000);
+		return (0 + testRet);
 	}
 	else return response;
 }
 
-uint8_t app_Error_Handler (uint8_t * resultCode)
+uint8_t app_Error_Handler ( BG95_TypeDef * device, uint8_t * resultCode )
 {
-	// For now...
-	while (1);
+
+	switch (device->swState)
+	{
+	case 0:
+		while (1); // For now...
+		break;
+	case 10:
+		while (1); // For now...
+		break;
+	case 11:									/*!< AT+CFUN=1 step in the sw state */
+		if ( *resultCode%10 == 5 )				/*!< ERROR response 			*/
+		{
+			//stuff
+		}
+		else if ( *resultCode%10 == 4 )			/*!< Undefined response 			*/
+		{
+			//stuff
+		}
+		else if ( *resultCode%10 == 2 )			/*!< No data gathered 				*/
+		{
+			//stuff
+		}
+		else									/*!< Not expected to enter here 	*/
+		{
+			//stuff
+		}
+		break;
+	case 20:
+		//statements
+		break;
+	case 30:									/*!< CSQ error handling				*/
+
+		if ( *resultCode != 0)
+		{
+			while (1); // Will be changed...
+		}
+		HAL_Delay(500); // Delay for device to get signal if not got it
+		*resultCode = getCsq(device);
+
+		if ( (*resultCode != 0) || (device->csq.rssi == 0x52) || (device->csq.rssi == 99) )		/*!< 0x52: R : default app. reset value */
+		{
+		  app_Error_Handler( device, resultCode );		// AT+CSQ may response two different ERRORs
+		}
+
+		break;
+	case 40:
+		//statements
+		break;
+	case 50:
+		//statements
+		break;
+	case 60:
+		//statements
+		break;
+	case 63:									/*!< Socket application function 	*/
+
+		// AT+QIDEACT=1 	// Deactivate the PDP context with id 1 to be sure if the pdp context closed properly
+		// AT+QIACT=1		// Open the socket
+		// AT+QIACT?		// Check again
+		// do the above two steps in loop
+		// if success within timing return 0 o.w. 1
+
+		device->swState = 64;
+		sendWriteReceiveAtCommandT(device, "QIDEACT", "1", (uint8_t *) "AT+QIDEACT\0", (uint8_t *) "OK\r\n\0", 2000);
+		sendWriteReceiveAtCommandT(device, "QIACT", "1", (uint8_t *) "AT+QIACT\0", (uint8_t *) "OK\r\n\0", 2000);
+
+		getQiact(device);
+		uint8_t size = strlen((char*)device->qiact.ip);
+		uint8_t count = 0;
+		for (int i=0; i<size; i++) if(device->qiact.ip[i] == 0x2E) count++; // 0x2E: .
+
+		if( ( count != 3 ) || ( device->qiact.ip[0] == 0 ) || ( device->qiact.cState != 1 ) )
+		{
+			app_Error_Handler( device, NULL );				// IP may be unvalid or connection may not be established
+		}
+		break;
+	case 64:									/*!< Will enter if case 63 failed. 	*/
+		while (1); // For now...
+		break;
+	case 70:
+		//statements
+		break;
+	}
+
 	return 0;
 }

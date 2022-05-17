@@ -81,6 +81,7 @@ typedef struct {
 	uint8_t cfun;					/*!< Functionality level of UE. 								*/
 	uint32_t SR;					/*!< Status Register of application. 							*/
 	uint8_t swState;				/*!< Application software state 		 						*/
+	//uint8_t * invalidResponse;		/*!< Invalid response buffer pointer 	 						*/
 }BG95_TypeDef;
 
 /**
@@ -145,7 +146,7 @@ uint8_t sendCommand(BG95_TypeDef * device, char* command);
  * @return	0: Success
  * 			1: UART fails to send the command. HAL_OK did not received.
  */
-uint8_t sendPlain(BG95_TypeDef * device, char* command);
+uint8_t send_plain(BG95_TypeDef * device, char* command);
 
 /**
  * @brief	Sends command through UART line and receives the response.
@@ -175,6 +176,7 @@ uint8_t sendReceiveCommandT(BG95_TypeDef * device, char* command, uint8_t * star
  */
 uint8_t sendAtCommand(BG95_TypeDef * device, char* command);
 
+
 /**
  * @brief 	Sends AT+command? type READ command through UART line
  * 			also the command is ended with CR LF
@@ -184,7 +186,7 @@ uint8_t sendAtCommand(BG95_TypeDef * device, char* command);
  * @return	0: Success
  * 			1: UART fails to send the command. HAL_OK did not received.
  */
-uint8_t sendReadAtCommand(BG95_TypeDef * device, char* command);
+//uint8_t sendReadAtCommand(BG95_TypeDef * device, char* command);
 
 /**
  * @brief 	Sends AT+command=parameters type READ command through UART line
@@ -414,9 +416,30 @@ uint8_t sendSocket(BG95_TypeDef * device, uint8_t connectId, uint8_t data);
  * @todo	Alter the receive functions in order to not to discard the unvalidated data fields.
  * 			Switch case for error handler needed sw states.
  *
+ * @param	device	Device GSM device struct address.
+ * @param	resultCode	Application function return.
+ *
  * @return	Will be defined...
  */
-uint8_t app_Error_Handler (uint8_t * resultCode);
+uint8_t app_Error_Handler ( BG95_TypeDef * device, uint8_t * resultCode );
+
+
+/******************************************************************************
+ * 																			  *
+ * 							Status Register (SR)							  *
+ * 																		      *
+ ******************************************************************************/
+/**************  Bit definition for BG95_TypeDef SR register  *****************/
+#define BG95_SR_UEXPDT_Pos				(14U)
+#define BG95_SR_UEXPDT_Msk				(0x1UL << BG95_SR_UEXPDT_Pos)			/*!< 0x00004000 */
+#define BG95_SR_UEXPDT					BG95_SR_UEXPDT_Msk						/*!< Unepected data received flag				*/
+#define BG95_SR_EXPRSP_Pos				(15U)
+#define BG95_SR_EXPRSP_Msk				(0x1UL << BG95_SR_EXPRSP_Pos)			/*!< 0x00008000 */
+#define BG95_SR_EXPRSP					BG95_SR_EXPRSP_Msk						/*!< Character match interrupt enable			*/
+#define BG95_SR_PDPCTX_Pos				(16U)
+#define BG95_SR_PDPCTX_Msk				(0x1UL << BG95_SR_PDPCTX_Pos)			/*!< 0x001F0000 */
+#define BG95_SR_PDPCTX					BG95_SR_PDPCTX_Msk						/*!< PDP Context set flag						*/
+
 
 
 #endif /* BG95_H_ */

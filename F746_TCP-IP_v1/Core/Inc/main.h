@@ -53,7 +53,20 @@ extern "C" {
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
+
 /* USER CODE BEGIN EFP */
+/**
+ * @brief 	Initializes the device for socket service
+ *
+ */
+void initializeApp ( void );
+
+/**
+ * @brief	Checks for internet and socket connection and sends the data.
+ *
+ * @param 	data 	Data to be send.
+ */
+void socketApp ( uint8_t data );
 
 /* USER CODE END EFP */
 
